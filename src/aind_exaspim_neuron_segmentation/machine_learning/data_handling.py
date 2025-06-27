@@ -185,8 +185,8 @@ class TrainDataset(BaseDataset):
         super().__init__(
             input_img_paths,
             label_mask_paths,
-            is_instance_segmentation=True,
-            patch_shape=(128, 128, 128)
+            is_instance_segmentation=is_instance_segmentation,
+            patch_shape=patch_shape
         )
 
         # Instance attributes
@@ -335,8 +335,8 @@ class ValidateDataset(BaseDataset):
         super().__init__(
             input_img_paths,
             label_mask_paths,
-            is_instance_segmentation=True,
-            patch_shape=(128, 128, 128)
+            is_instance_segmentation=is_instance_segmentation,
+            patch_shape=patch_shape
         )
 
         # Instance attributes

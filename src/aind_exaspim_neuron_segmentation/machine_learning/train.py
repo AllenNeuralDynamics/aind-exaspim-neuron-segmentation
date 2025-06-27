@@ -65,12 +65,9 @@ class Trainer:
             val_stats, new_best = self.validate_step(val_dataloader, epoch)
 
             # Report reuslts
-            print(f"Epoch {epoch}: " + "New Best!" if new_best else "")
-            print("  Train Results...")
-            self.report_stats(train_stats)
-
-            print("  Validate Results...")
-            self.report_stats(val_stats)
+            print(f"\nEpoch {epoch}:", "New Best!" if new_best else "")
+            self.report_stats(train_stats, is_train=True)
+            self.report_stats(val_stats, is_train=False)
 
             # Step scheduler
             self.scheduler.step()
@@ -121,6 +118,24 @@ class Trainer:
             return stats, False
 
     def forward_pass(self, x, y):
+        """
+        Perform a forward pass through the model and compute loss.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor with shape (B, C, D, H, W).
+        y : torch.Tensor
+            Ground truth labels with shape (B, C, D, H, W).
+
+        Returns
+        -------
+        tuple
+            hat_y : torch.Tensor
+                Model predictions.
+            loss : torch.Tensor
+                Computed loss value.
+        """
         x = x.to("cuda", dtype=torch.float)
         y = y.to("cuda", dtype=torch.float)
         hat_y = self.model(x)
@@ -129,6 +144,21 @@ class Trainer:
 
     # --- Helpers
     def compute_stats(self, y, hat_y):
+        """
+        Compute F1 score, precision, and recall for each sample in a batch.
+
+        Parameters
+        ----------
+        y : torch.Tensor
+            Ground truth labels of shape (B, 1, D, H, W) or (B, 1, H, W).
+        hat_y : torch.Tensor
+            Model predictions of the same shape as ground truth.
+
+        Returns
+        -------
+        dict
+            Dictionary containing lists of per-sample metrics.
+        """
         y, hat_y = toCPU(y, True), toCPU(hat_y, True)
         stats = {"f1": list(), "precision": list(), "recall": list()}
         for i in range(y.shape[0]):
@@ -142,19 +172,62 @@ class Trainer:
             stats["recall"].append(recall_score(gt, pred, zero_division=np.nan))
         return stats
 
-    def report_stats(self, stats):
-        summary = "    "
+    def report_stats(self, stats, is_train=True):
+        """
+        Print a summary of training or validation statistics.
+
+        Parameters
+        ----------
+        stats : dict
+            Dictionary of metric names to values.
+        is_train : bool, optional
+            Indication of whether "stats" were computed during training step.
+            Default is True.
+
+        Returns
+        -------
+        None
+        """
+        summary = "   Train: " if is_train else "   Val: "
         for key, value in stats.items():
             summary += f"{key}={value:.4f}, "
         print(summary)
 
     def save_model(self, epoch):
+        """
+        Save the current model state to a file.
+
+        Parameters
+        ----------
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        None
+        """
         date = datetime.today().strftime("%Y%m%d")
-        filename = f"UNet3d-{date}-{epoch}-{round(self.best_f1, 4)}.pth"
+        filename = f"UNet3d-{date}-{epoch}-{self.best_f1:.4f}.pth"
         path = os.path.join(self.log_dir, filename)
         torch.save(self.model.state_dict(), path)
 
     def update_tensorboard(self, stats, epoch, prefix):
+        """
+        Log scalar statistics to TensorBoard.
+
+        Parameters
+        ----------
+        stats : dict
+            Dictionary of metric names (str) to lists of values.
+        epoch : int
+            Current training epoch.
+        prefix : str
+            Prefix to prepend to each metric name when logging.
+
+        Returns
+        -------
+        None
+        """
         for key, value in stats.items():
             stats[key] = np.nanmean(value)
             self.writer.add_scalar(prefix + key, stats[key], epoch)
@@ -162,6 +235,21 @@ class Trainer:
 
 # --- Helpers ---
 def toCPU(tensor, to_numpy=False):
+    """
+    Move PyTorch tensor to the CPU and optionally convert it to a NumPy array.
+
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        Tensor to move to CPU.
+    to_numpy : bool, optional
+        If True, converts the tensor to a NumPy array. Default is False.
+
+    Returns
+    -------
+    torch.Tensor or np.ndarray
+        Tensor or array on CPU.
+    """
     if to_numpy:
         return np.array(tensor.detach().cpu())
     else:
