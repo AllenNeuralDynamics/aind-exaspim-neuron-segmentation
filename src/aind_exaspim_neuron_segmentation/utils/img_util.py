@@ -20,6 +20,24 @@ from aind_exaspim_neuron_segmentation.utils import util
 
 # --- Image Reader ---
 def read(img_path):
+    """
+    Read an image volume from a supported path based on its extension.
+
+    Supported formats:
+    - Zarr ('.zarr') from local, GCS, or S3
+    - N5 ('.n5') from local or GCS
+    - TIFF ('.tif', '.tiff') from local or GCS
+
+    Parameters
+    ----------
+    img_path : str
+        Path to the image. Can be a local or cloud path (gs:// or s3://).
+
+    Returns
+    -------
+    np.ndarray
+        Loaded image volume as a NumPy array.
+    """
     if ".zarr" in img_path:
         return _read_zarr(img_path)
     elif ".n5" in img_path:
@@ -31,6 +49,19 @@ def read(img_path):
 
 
 def _read_zarr(img_path):
+    """
+    Read a Zarr volume from local disk, GCS, or S3.
+
+    Parameters
+    ----------
+    img_path : str
+        Path to the Zarr directory.
+
+    Returns
+    -------
+    np.ndarray
+        First array in the Zarr group.
+    """
     if _is_gcs_path(img_path):
         fs = gcsfs.GCSFileSystem(anon=False)
         store = zarr.storage.FSStore(img_path, fs=fs)
@@ -43,6 +74,19 @@ def _read_zarr(img_path):
 
 
 def _read_n5(img_path):
+    """
+    Read an N5 volume from local disk or GCS.
+
+    Parameters
+    ----------
+    img_path : str
+        Path to the N5 directory.
+
+    Returns
+    -------
+    np.ndarray
+        N5 group volume stored at key "volume".
+    """
     if _is_gcs_path(img_path):
         fs = gcsfs.GCSFileSystem(anon=False)
         store = zarr.n5.N5FSStore(img_path, s=fs)
@@ -52,6 +96,21 @@ def _read_n5(img_path):
 
 
 def _read_tiff(img_path, storage_options=None):
+    """
+    Read a TIFF file from local disk or GCS.
+
+    Parameters
+    ----------
+    img_path : str
+        Path to the TIFF file.
+    storage_options : dict, optional
+        Additional kwargs for GCSFileSystem.
+
+    Returns
+    -------
+    np.ndarray
+        Image data from the TIFF file.
+    """
     if _is_gcs_path(img_path):
         fs = gcsfs.GCSFileSystem(**(storage_options or {}))
         with fs.open(img_path, "rb") as f:
@@ -61,10 +120,32 @@ def _read_tiff(img_path, storage_options=None):
 
 
 def _is_gcs_path(path):
+    """
+    Check if the path is a GCS path.
+
+    Parameters
+    ----------
+    path : str
+
+    Returns
+    -------
+    bool
+    """
     return path.startswith("gs://")
 
 
 def _is_s3_path(path):
+    """
+    Check if the path is an S3 (Amazon S3) path.
+
+    Parameters
+    ----------
+    path : str
+
+    Returns
+    -------
+    bool
+    """
     return path.startswith("s3://")
 
 
@@ -202,6 +283,19 @@ def list_block_paths(brain_id):
 
 
 def normalize(img):
+    """
+    Normalize a NumPy image array based on percentile clipping.
+
+    Parameters
+    ----------
+    img : np.ndarray
+        Input image array to normalize.
+
+    Returns
+    -------
+    np.ndarray
+        Normalized image with values approximately in [0, 1].
+    """
     mn, mx = np.percentile(img, 5), np.percentile(img, 99.9)
     return (img - mn) / mx
 

@@ -10,6 +10,49 @@ Miscellaneous helper routines.
 
 from google.cloud import storage
 
+import os
+import shutil
+
+
+# -- OS Utils ---
+def mkdir(path, delete=False):
+    """
+    Creates a directory at the given path.
+
+    Parameters
+    ----------
+    path : str
+        Path of directory to be created.
+    delete : bool, optional
+        Indication of whether to delete directory at path if it already
+        exists. The default is False.
+
+    Returns
+    -------
+    None
+    """
+    if delete:
+        rmdir(path)
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+
+def rmdir(path):
+    """
+    Removes the given directory and all of its subdirectories.
+
+    Parameters
+    ----------
+    path : str
+        Path to directory to be removed if it exists.
+
+    Returns
+    -------
+    None
+    """
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
 
 # --- GCS utils ---
 def find_subprefix_with_keyword(bucket_name, prefix, keyword):
