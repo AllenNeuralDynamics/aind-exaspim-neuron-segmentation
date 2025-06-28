@@ -25,6 +25,11 @@ from aind_exaspim_neuron_segmentation.utils import util
 
 
 class Trainer:
+    """
+    Trainer class for managing the full training pipeline of a
+    segmentation model.
+    """
+
     def __init__(
         self,
         output_dir,
@@ -32,6 +37,25 @@ class Trainer:
         lr=1e-3,
         max_epochs=1000,
     ):
+        """
+        Instantiates Trainer object.
+
+        Parameters
+        ----------
+        output_dir : str
+            Directory where logs, model checkpoints, and TensorBoard is saved.
+        batch_size : int, optional
+            Number of samples per batch for both training and validation.
+            Default is 16.
+        lr : float, optional
+            Initial learning rate for the optimizer. Default is 1e-3.
+        max_epochs : int, optional
+            Maximum number of training epochs. Default is 1000.
+
+        Returns
+        -------
+        None
+        """
         # Initializations
         exp_name = "session-" + datetime.today().strftime("%Y%m%d_%H%M")
         log_dir = os.path.join(output_dir, exp_name)
@@ -51,6 +75,20 @@ class Trainer:
 
     # --- Core Routines ---
     def run(self, train_dataset, val_dataset):
+        """
+        Run the full training and validation loop.
+
+        Parameters
+        ----------
+        train_dataset : torch.utils.data.Dataset
+            Dataset used for training.
+        val_dataset : torch.utils.data.Dataset
+            Dataset used for validation.
+
+        Returns
+        -------
+        None
+        """
         # Initializations
         print("Experiment:", os.path.basename(os.path.normpath(self.log_dir)))
         train_dataloader = DataLoader(
@@ -65,7 +103,7 @@ class Trainer:
             val_stats, new_best = self.validate_step(val_dataloader, epoch)
 
             # Report reuslts
-            print(f"\nEpoch {epoch}:", "New Best!" if new_best else "")
+            print(f"\nEpoch {epoch}: " + "New Best!" if new_best else " ")
             self.report_stats(train_stats, is_train=True)
             self.report_stats(val_stats, is_train=False)
 
@@ -73,6 +111,21 @@ class Trainer:
             self.scheduler.step()
 
     def train_step(self, train_dataloader, epoch):
+        """
+        Perform a single training epoch over the provided DataLoader.
+
+        Parameters
+        ----------
+        train_dataloader : torch.utils.data.DataLoader
+            DataLoader for the training dataset.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        dict
+            Dictionary of aggregated training metrics.
+        """
         stats = {"f1": [], "precision": [], "recall": [], "loss": []}
         self.model.train()
         for x, y in train_dataloader:
@@ -94,6 +147,24 @@ class Trainer:
         return stats
 
     def validate_step(self, val_dataloader, epoch):
+        """
+        Perform a full validation loop over the given dataloader.
+
+        Parameters
+        ----------
+        val_dataloader : torch.utils.data.DataLoader
+            DataLoader for the validation dataset.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        tuple
+            stats : dict
+                Dictionary of aggregated validation metrics.
+            is_best : bool
+                True if the current F1 score is the best so far.
+        """
         stats = {"f1": [], "precision": [], "recall": [], "loss": []}
         with torch.no_grad():
             self.model.eval()
