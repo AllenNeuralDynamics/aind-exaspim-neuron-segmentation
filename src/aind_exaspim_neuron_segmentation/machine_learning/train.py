@@ -90,7 +90,7 @@ class Trainer:
         None
         """
         # Initializations
-        print("Experiment:", os.path.basename(os.path.normpath(self.log_dir)))
+        print("\nExperiment:", os.path.basename(os.path.normpath(self.log_dir)))
         train_dataloader = DataLoader(
             train_dataset, batch_size=self.batch_size
         )

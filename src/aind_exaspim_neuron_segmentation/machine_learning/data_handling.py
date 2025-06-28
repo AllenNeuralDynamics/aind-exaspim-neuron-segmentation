@@ -296,8 +296,8 @@ class TrainDataset(BaseDataset):
             Coordinate of the center point for a patch.
         """
         idxs = range(3) if len(shape) == 3 else range(2, 5)
-        upper = [shape[i] - s for i, s in zip(idxs, self.patch_shape)]
-        lower = [self.patch_shape[i] for i in range(3)]
+        upper = [shape[i] - s // 2 for i, s in zip(idxs, self.patch_shape)]
+        lower = [s // 2 for s in range(self.patch_shape)]
         return np.array([random.randint(l, u) for l, u in zip(lower, upper)])
 
 
