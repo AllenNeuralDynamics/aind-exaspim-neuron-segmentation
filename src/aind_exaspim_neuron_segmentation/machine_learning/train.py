@@ -1,10 +1,10 @@
 """
-Created on Fri Jan 3 12:30:00 2025
+Created on Fri June 27 4:00:00 2025
 
 @author: Anna Grim
 @email: anna.grim@alleninstitute.org
 
-Code used to train neural network to classify somas proposals.
+Code used to train neural network to perform image segmentation.
 
 """
 
