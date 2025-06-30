@@ -103,7 +103,7 @@ class Trainer:
             val_stats, new_best = self.validate_step(val_dataloader, epoch)
 
             # Report reuslts
-            print(f"\nEpoch {epoch}: " + "New Best!" if new_best else " ")
+            print(f"\nEpoch {epoch}: " + ("New Best!" if new_best else " "))
             self.report_stats(train_stats, is_train=True)
             self.report_stats(val_stats, is_train=False)
 
@@ -126,7 +126,7 @@ class Trainer:
         dict
             Dictionary of aggregated training metrics.
         """
-        stats = {"f1": [], "precision": [], "recall": [], "loss": []}
+        stats = {"precision": [], "recall": [], "loss": []}
         self.model.train()
         for x, y in train_dataloader:
             # Forward pass
@@ -165,7 +165,7 @@ class Trainer:
             is_best : bool
                 True if the current F1 score is the best so far.
         """
-        stats = {"f1": [], "precision": [], "recall": [], "loss": []}
+        stats = {"precision": [], "recall": [], "loss": []}
         with torch.no_grad():
             self.model.eval()
             for x, y in val_dataloader:
@@ -181,6 +181,8 @@ class Trainer:
         self.update_tensorboard(stats, epoch, "val_")
 
         # Check for new best
+        avg_prec, avg_recall = stats["precision"], stats["recall"]
+        stats["f1"] = 2 * avg_prec * avg_recall / (avg_prec + avg_recall)
         if stats["f1"] > self.best_f1:
             self.save_model(epoch)
             self.best_f1 = stats["f1"]
@@ -231,14 +233,13 @@ class Trainer:
             Dictionary containing lists of per-sample metrics.
         """
         y, hat_y = toCPU(y, True), toCPU(hat_y, True)
-        stats = {"f1": list(), "precision": list(), "recall": list()}
+        stats = {"precision": list(), "recall": list()}
         for i in range(y.shape[0]):
             # Ensure binary format
             gt = (y[i, 0, ...] > 0).astype(np.uint8).flatten()
             pred = (hat_y[i, 0, ...] > 0).astype(np.uint8).flatten()
 
             # Compute metrics
-            stats["f1"].append(f1_score(gt, pred, zero_division=np.nan))
             stats["precision"].append(precision_score(gt, pred, zero_division=np.nan))
             stats["recall"].append(recall_score(gt, pred, zero_division=np.nan))
         return stats
@@ -302,6 +303,10 @@ class Trainer:
         for key, value in stats.items():
             stats[key] = np.nanmean(value)
             self.writer.add_scalar(prefix + key, stats[key], epoch)
+
+        avg_prec, avg_recall = stats["precision"], stats["recall"]
+        stats["f1"] = 2 * avg_prec * avg_recall / (avg_prec + avg_recall)
+        self.writer.add_scalar(prefix + "f1", stats["f1"], epoch)
 
 
 # --- Helpers ---

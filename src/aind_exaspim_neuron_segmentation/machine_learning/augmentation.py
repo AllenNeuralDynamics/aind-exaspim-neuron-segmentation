@@ -126,7 +126,7 @@ class RandomRotation3D:
 
     """
 
-    def __init__(self, angles=(-90, 90), axes=((0, 1), (0, 2), (1, 2))):
+    def __init__(self, angles=(-45, 45), axes=((0, 1), (0, 2), (1, 2))):
         """
         Initializes a RandomRotation3D transformer.
 
@@ -278,7 +278,7 @@ class RandomNoise3D:
 
     """
 
-    def __init__(self, max_std=0.1):
+    def __init__(self, max_std=0.05):
         """
         Initializes a RandomNoise3D transformer.
 
