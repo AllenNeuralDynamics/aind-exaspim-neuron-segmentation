@@ -84,7 +84,7 @@ def predict(
 
             batch_coords.clear()
             batch_inputs.clear()
-    return stitch(img, coords, preds)
+    return stitch(img, coords, preds, patch_size=patch_size)
 
 
 def predict_patch(patch, model):
