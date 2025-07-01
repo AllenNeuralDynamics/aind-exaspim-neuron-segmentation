@@ -246,7 +246,7 @@ class TrainDataset(BaseDataset):
         int
             Number of samples (5x number of label masks).
         """
-        return 5 * len(self.label_masks)
+        return 4 * len(self.label_masks)
 
     # --- Patch Sampling ---
     def sample_patch(self):
@@ -266,7 +266,7 @@ class TrainDataset(BaseDataset):
         try:
             # Search for foreground or background patch
             cnt = 0
-            is_foreground = np.random.random() > 0.05
+            is_foreground = np.random.random() > 0.1
             i = np.random.choice(np.arange(len(self.input_imgs)), p=self.wgts)
             while cnt < 25:
                 cnt += 1
@@ -359,10 +359,18 @@ class ValidateDataset(BaseDataset):
         List[tuple]
             List of (image_index, patch_center) tuples for validation patches.
         """
-        example_ids = list()
+        # Extract foreground/background patches
+        foreground, background = list(), list()
         for i in range(len(self.input_imgs)):
-            example_ids.extend(self.generate_examples_from_img(i))
-        return example_ids
+            foreground_i, background_i = self.generate_examples_from_img(i)
+            foreground.extend(foreground_i)
+            background.extend(background_i)
+
+        # Extract examples
+        n_background_examples = int(len(foreground) * 0.1)
+        background = random.sample(background, n_background_examples)
+        foreground.extend(background)
+        return foreground
 
     def generate_examples_from_img(self, i):
         """
@@ -378,15 +386,16 @@ class ValidateDataset(BaseDataset):
         List[tuple]
             List of (image_index, patch_center) tuples.
         """
-        example_ids = list()
+        foreground, background = list(), list()
         label_mask = self.label_masks[i]
         for v in img_util.calculate_offsets(label_mask, self.patch_shape):
             center = [v_i + s_i // 2 for v_i, s_i in zip(v, self.patch_shape)]
             patch = self.get_patch(label_mask, center)
-            foreground_cnt = (patch > 0).sum()
-            if foreground_cnt > 10**4 or np.random.random() > 0.95:
-                example_ids.append((i, center))
-        return example_ids
+            if (patch > 0).sum() > 5000:
+                foreground.append((i, center))
+            else:
+                background.append((i, center))
+        return foreground, background
 
     def __getitem__(self, idx):
         """
