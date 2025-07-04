@@ -263,26 +263,22 @@ class TrainDataset(BaseDataset):
             (image index, input patch, label patch), where patches are NumPy
             arrays.
         """
-        try:
-            # Search for foreground or background patch
-            cnt = 0
-            is_foreground = np.random.random() > 0.1
-            i = np.random.choice(np.arange(len(self.input_imgs)), p=self.wgts)
-            while cnt < 25:
-                cnt += 1
-                center = self.sample_center(self.label_masks[i].shape)
-                label_patch = self.get_label_patch(i, center)
-                foreground_cnt = (label_patch > 0).sum()
-                if foreground_cnt > 5000 and is_foreground:
-                    break
-                elif foreground_cnt == 0 and not is_foreground:
-                    break
+        # Search for foreground or background patch
+        cnt = 0
+        is_foreground = np.random.random() > 0.1
+        i = np.random.choice(np.arange(len(self.input_imgs)), p=self.wgts)
+        while cnt < 25:
+            cnt += 1
+            center = self.sample_center(self.label_masks[i].shape)
+            label_patch = self.get_label_patch(i, center)
+            foreground_cnt = (label_patch > 0).sum()
+            if foreground_cnt > 5000 and is_foreground:
+                break
+            elif foreground_cnt == 0 and not is_foreground:
+                break
 
-            # Reformat patches
-            input_patch = self.get_input_patch(i, center)
-        except Exception as e:
-            print("Exception:", e)
-            print(self.label_masks[i].shape, self.input_imgs[i].shape, center)
+        # Reformat patches
+        input_patch = self.get_input_patch(i, center)
         return i, input_patch, label_patch
 
     def sample_center(self, shape):
