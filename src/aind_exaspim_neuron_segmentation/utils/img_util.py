@@ -248,8 +248,69 @@ def calculate_offsets(img, window_shape, overlap=(0, 0, 0)):
                 voxels.append((i, j, k))
     return voxels
 
+def get_affinity_mask(label_mask, edge):
+    """
+    Computes affinity mask for label mask based on the given edge affinity
+    direction.
 
-def list_block_paths(brain_id):
+    Parameters
+    ----------
+    label_mask : numpy.ndarray
+        Label mask that represents an instance segmentation image.
+    edge : Tuple[int]
+        Edge affinity direction (e.g (1, 0, 0)).
+
+    Returns
+    -------
+    torch.Tensor
+        Binary tensor, where each element indicates the affinity for each
+        voxel based on the given edge.
+
+    """
+    o1, o2 = get_offset_masks(label_mask, edge)
+    aff_mask = (o1 == o2) & (o1 != 0)
+    return aff_mask.astype(label_mask.dtype)
+
+
+def get_offset_masks(label_mask, edge):
+    """
+    Extracts two subarrays from "label_mask" by using the given edge affinity
+    as an offset.
+
+    Parameters
+    ----------
+    label_mask : torch.Tensor
+        Label mask that represents an instance segmentation image.
+    edge : Tuple[int]
+        Edge affinity direction (e.g (1, 0, 0)).
+
+    Returns
+    -------
+    tuple of torch.Tensor
+        A tuple containing two tensors:
+        - "arr1": Subarray extracted based on the edge affinity.
+        - "arr2": Subarray extracted based on the negative of the edge
+                  affinity.
+    """
+    shape = label_mask.shape
+    edge = np.array(edge)
+    offset1 = np.maximum(edge, 0)
+    offset2 = np.maximum(-edge, 0)
+
+    offset_mask1 = label_mask[
+        offset1[0]: shape[0] - offset2[0],
+        offset1[1]: shape[1] - offset2[1],
+        offset1[2]: shape[2] - offset2[2],
+    ]
+    offset_mask2 = label_mask[
+        offset2[0]: shape[0] - offset1[0],
+        offset2[1]: shape[1] - offset1[1],
+        offset2[2]: shape[2] - offset1[2],
+    ]
+    return offset_mask1, offset_mask2
+
+
+def list_block_paths(brain_id, prefix):
     """
     Lists the GCS paths to image blocks associated with a given brain ID.
 
@@ -263,22 +324,16 @@ def list_block_paths(brain_id):
     img_paths : List[str]
         GCS paths (gs://...) to the image blocks.
     """
-    # Find prefix containing blocks
-    bucket_name = "allen-nd-goog"
-    prefix = util.find_subprefix_with_keyword(bucket_name, "from_aind/", brain_id)
-    prefix += "blocks/"
-
-    # Iterate over blocks
     img_paths, label_paths = list(), list()
     for block_prefix in util.list_gcs_subprefixes("allen-nd-goog", prefix):
         img_path = util.find_subprefix_with_keyword(
-            bucket_name, block_prefix, "input"
+            "allen-nd-goog", block_prefix, "input."
         )
         label_path = util.find_subprefix_with_keyword(
-            bucket_name, block_prefix, "Label"
+            "allen-nd-goog", block_prefix, "Fill_Label_Mask."
         )
-        img_paths.append(f"gs://{bucket_name}/{img_path}")
-        label_paths.append(f"gs://{bucket_name}/{label_path}")
+        img_paths.append(f"gs://allen-nd-goog/{img_path}")
+        label_paths.append(f"gs://allen-nd-goog/{label_path}")
     return img_paths, label_paths
 
 
