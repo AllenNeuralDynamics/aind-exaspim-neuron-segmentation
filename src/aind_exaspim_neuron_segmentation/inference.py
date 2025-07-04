@@ -1,5 +1,5 @@
 """
-Created on Wed April 30 14:00:00 2025
+Created on Wed June 28 12:00:00 2025
 
 @author: Anna Grim
 @email: anna.grim@alleninstitute.org
@@ -11,10 +11,18 @@ into a full 3D volume.
 
 """
 
+from scipy import ndimage as ndi
+from skimage.feature import peak_local_max
+from skimage.filters import threshold_otsu
+from skimage.morphology import ball
+from skimage.segmentation import watershed
 from tqdm import tqdm
 
 import numpy as np
 import torch
+import waterz
+
+from aind_exaspim_neuron_segmentation.utils import img_util
 
 
 def predict(
@@ -74,7 +82,7 @@ def predict(
             # Run model
             input_tensor = batch_to_tensor(np.stack(batch_inputs))
             with torch.no_grad():
-                output_tensor = model(input_tensor)
+                output_tensor = torch.sigmoid(model(input_tensor))
 
             # Store result
             output_tensor = output_tensor.cpu()
@@ -103,10 +111,9 @@ def predict_patch(patch, model):
     numpy.ndarray
         Denoised 3D patch with the same shape as input patch.
     """
-    mn, mx = np.percentile(patch, 5), np.percentile(patch, 99.9)
-    patch = to_tensor((patch - mn) / max(mx, 1))
+    patch = to_tensor(img_util.normalize(patch))
     with torch.no_grad():
-        output_tensor = model(patch)
+        output_tensor = torch.sigmoid(model(patch))
     return np.array(output_tensor.cpu())
 
 
@@ -168,6 +175,42 @@ def stitch(img, coords, preds, patch_size=64, trim=5):
     # Average accumulated
     weight_map[weight_map == 0] = 1
     return denoised_accum / weight_map
+
+
+def run_watershed(pred):
+    # Distance transform
+    img = pred > max(threshold_otsu(pred), -1)
+    distance = ndi.distance_transform_edt(img)
+
+    # Find local maxima to use as markers
+    local_maxi = peak_local_max(distance, labels=img, exclude_border=False)
+
+    # Create marker array
+    markers = np.zeros_like(img, dtype=int)
+    for i, coord in enumerate(local_maxi, start=1):
+        markers[tuple(coord)] = i
+
+    # Run watershed
+    return  watershed(-distance, markers, mask=img)
+
+
+def run_agglomerative_watershed(pred, thresholds=[0.2, 0.4, 0.6]):
+    # Compute segmentation mask
+    segmentation = run_watershed(pred)
+
+    # Prepare agglomeration input
+    restricted_pred = pred.copy()
+    restricted_pred[segmentation == 0] = 0
+    pseudo_affs = np.stack(3 * [restricted_pred[0, 0, ...]], axis=0)
+
+    # Agglomeration
+    segmentations = waterz.agglomerate(
+        pseudo_affs,
+        thresholds,
+        aff_threshold_low=0.1,
+        aff_threshold_high=0.99,
+    )
+    return list(segmentations)[-1]
 
 
 # --- Helpers ---
