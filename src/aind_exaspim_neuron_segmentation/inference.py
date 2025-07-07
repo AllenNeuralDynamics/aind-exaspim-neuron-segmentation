@@ -16,6 +16,7 @@ from skimage.feature import peak_local_max
 from skimage.filters import threshold_otsu
 from skimage.morphology import ball
 from skimage.segmentation import watershed
+from time import time
 from tqdm import tqdm
 
 import numpy as np
@@ -56,10 +57,12 @@ def predict(
     """
     # Initializations
     batch_coords, batch_inputs = list(), list()
+    while len(img.shape) < 5:
+        img = img[np.newaxis, ...]
     coords = generate_coords(img, patch_size, overlap)
 
     # Main
-    pbar = tqdm(total=len(coords), desc="Predict") if verbose else None
+    pbar = tqdm(total=len(coords), desc="Segment") if verbose else None
     preds = list()
     for idx, (i, j, k) in enumerate(coords):
         # Get end coord
@@ -179,8 +182,13 @@ def stitch(img, coords, preds, patch_size=64, trim=5):
 
 def run_watershed(pred):
     # Distance transform
-    img = pred > max(threshold_otsu(pred), -1)
+    t0 = time()
+    img = pred > max(threshold_otsu(pred), 0.3)
+    print("threshold_otsu:", time() - t0)
+    
+    t0 = time()
     distance = ndi.distance_transform_edt(img)
+    print("distance_transform_edt:", time() - t0)
 
     # Find local maxima to use as markers
     local_maxi = peak_local_max(distance, labels=img, exclude_border=False)
@@ -194,13 +202,13 @@ def run_watershed(pred):
     return  watershed(-distance, markers, mask=img)
 
 
-def run_agglomerative_watershed(pred, thresholds=[0.2, 0.4, 0.6]):
-    # Compute segmentation mask
-    segmentation = run_watershed(pred)
+def run_agglomerative_watershed(pred, thresholds=[0.1, 0.3, 0.4]):
+    # Compute foregroun mask
+    binary_mask = pred > min(max(threshold_otsu(pred), 0.4), 0.6)
 
     # Prepare agglomeration input
     restricted_pred = pred.copy()
-    restricted_pred[segmentation == 0] = 0
+    restricted_pred[binary_mask == 0] = 0
     pseudo_affs = np.stack(3 * [restricted_pred[0, 0, ...]], axis=0)
 
     # Agglomeration
