@@ -9,7 +9,7 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
 
         # Initializations
-        _channels = (16, 32, 64, 128, 256)
+        _channels = (32, 64, 128, 256, 512)
         factor = 2 if trilinear else 1
 
         # Instance attributes
