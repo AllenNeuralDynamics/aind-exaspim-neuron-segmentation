@@ -310,14 +310,14 @@ def get_offset_masks(label_mask, edge):
     return offset_mask1, offset_mask2
 
 
-def list_block_paths(brain_id, prefix):
+def list_block_paths(prefix):
     """
     Lists the GCS paths to image blocks associated with a given brain ID.
 
     Parameters
     ----------
-    brain_id : str
-        Unique identifier for a brain dataset.
+    prefix : str
+        Path to GCS directory contain image blocks.
 
     Returns
     -------
