@@ -59,10 +59,11 @@ class BaseDataset(Dataset):
         self.patch_shape = patch_shape
 
         # Load images
-        self.input_imgs = self.load_imgs(input_img_paths, is_inputs=True)
-        self.label_masks = self.load_imgs(label_mask_paths, is_inputs=False)
+        self.input_imgs = self._load_imgs(input_img_paths, is_inputs=True)
+        self.label_masks = self._load_imgs(label_mask_paths, is_inputs=False)
+        self._init_normalization_factors()
 
-    def load_imgs(self, img_paths, is_inputs=True):
+    def _load_imgs(self, img_paths, is_inputs=True):
         """
         Load a list of volumetric images.
 
@@ -85,6 +86,13 @@ class BaseDataset(Dataset):
             img = img_util.read(img_path)
             imgs.append(img)
         return imgs
+
+    def _init_normalization_factors(self):
+        self.normalization_factors = list()
+        desc = "Compute Normalization Factors"
+        for img in tqdm(self.input_imgs, desc=desc):
+            mn, mx = np.percentile(img[:], [5, 99.9])
+            self.normalization_factors.append((mn, mx))
 
     # --- Read Image Patches ---
     def get_patch(self, img, center):
@@ -123,7 +131,8 @@ class BaseDataset(Dataset):
             Normalized input patch with shape (1, D, H, W).
         """
         patch = self.get_patch(self.input_imgs[i], center)
-        return img_util.normalize(patch)
+        mn, mx = self.normalization_factors[i]
+        return (np.clip(patch, 0, 1000) - mn) / mx
 
     def get_label_patch(self, i, center):
         """
@@ -244,7 +253,7 @@ class TrainDataset(BaseDataset):
         Returns
         -------
         int
-            Number of samples (5x number of label masks).
+            Number of samples (4x number of label masks).
         """
         return 4 * len(self.label_masks)
 
@@ -265,14 +274,14 @@ class TrainDataset(BaseDataset):
         """
         # Search for foreground or background patch
         cnt = 0
-        is_foreground = np.random.random() > 0.1
+        is_foreground = np.random.random() > 0.15
         i = np.random.choice(np.arange(len(self.input_imgs)), p=self.wgts)
         while cnt < 25:
             cnt += 1
             center = self.sample_center(self.label_masks[i].shape)
             label_patch = self.get_label_patch(i, center)
             foreground_cnt = (label_patch > 0).sum()
-            if foreground_cnt > 5000 and is_foreground:
+            if foreground_cnt > 4000 and is_foreground:
                 break
             elif foreground_cnt == 0 and not is_foreground:
                 break

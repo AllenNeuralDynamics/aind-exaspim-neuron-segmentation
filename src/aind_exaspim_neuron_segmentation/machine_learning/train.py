@@ -9,7 +9,7 @@ Code used to train neural network to perform image segmentation.
 """
 
 from datetime import datetime
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter

@@ -8,7 +8,7 @@ Routines for applying image augmentation during training.
 
 """
 
-from scipy.ndimage import rotate, zoom
+from scipy.ndimage import gaussian_filter, rotate, zoom
 
 import numpy as np
 import random
@@ -41,7 +41,10 @@ class ImageTransforms:
             RandomFlip3D(),
             RandomRotation3D(),
         ]
-        self.intensity_transforms = transforms.Compose(
+        self.intensity_transforms1 = transforms.Compose(
+                [RandomContrast3D(), GaussianSmoothing3D()]
+            )
+        self.intensity_transforms2 = transforms.Compose(
                 [RandomContrast3D(), RandomNoise3D()]
             )
 
@@ -68,7 +71,10 @@ class ImageTransforms:
             input_img, label_mask = transform(input_img, label_mask)
 
         # Intensity transforms
-        input_img = self.intensity_transforms(input_img)
+        if np.random.random() > 0.5:
+            input_img = self.intensity_transforms1(input_img)
+        else:
+            input_img = self.intensity_transforms2(input_img)
         return input_img.copy(), label_mask.copy()
 
 
@@ -278,7 +284,7 @@ class RandomNoise3D:
 
     """
 
-    def __init__(self, max_std=0.05):
+    def __init__(self, max_std=0.1):
         """
         Initializes a RandomNoise3D transformer.
 
@@ -315,6 +321,41 @@ class RandomNoise3D:
         std = self.max_std * random.random()
         noise = np.random.normal(0, std, img.shape)
         return img + noise
+
+
+class GaussianSmoothing3D:
+    """
+    Applies Gaussian smoothing (blurring) to a 3D image.
+    """
+
+    def __init__(self, max_sigma=3):
+        """
+        Initializes the GaussianSmoothing3D transformer.
+
+        Parameters
+        ----------
+        max_sigma : float
+            Maximum standard deviation for the Gaussian kernel. A random sigma
+            in the range [0, max_sigma] will be selected for each call.
+        """
+        self.max_sigma = max_sigma
+
+    def __call__(self, img):
+        """
+        Applies Gaussian smoothing to the input 3D image.
+
+        Parameters
+        ----------
+        img : np.ndarray
+            3D image to smooth.
+
+        Returns
+        -------
+        np.ndarray
+            Smoothed 3D image.
+        """
+        sigma = self.max_sigma * random.random()
+        return gaussian_filter(img, sigma=sigma)
 
 
 # --- Helpers ---
