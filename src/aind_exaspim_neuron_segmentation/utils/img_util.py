@@ -8,6 +8,9 @@ Helper routines for working with images.
 
 """
 
+from fastremap import mask_except, renumber, unique
+from matplotlib.colors import ListedColormap
+
 import gcsfs
 import matplotlib.pyplot as plt
 import numpy as np
@@ -248,6 +251,7 @@ def calculate_offsets(img, window_shape, overlap=(0, 0, 0)):
                 voxels.append((i, j, k))
     return voxels
 
+
 def get_affinity_mask(label_mask, edge):
     """
     Computes affinity mask for label mask based on the given edge affinity
@@ -317,7 +321,7 @@ def list_block_paths(prefix):
     Parameters
     ----------
     prefix : str
-        Path to GCS directory contain image blocks.
+        Path to directory containing image blocks.
 
     Returns
     -------
@@ -335,6 +339,31 @@ def list_block_paths(prefix):
         img_paths.append(f"gs://allen-nd-goog/{img_path}")
         label_paths.append(f"gs://allen-nd-goog/{label_path}")
     return img_paths, label_paths
+
+
+def make_segmentation_colormap(mask, seed=42):
+    """
+    Create a matplotlib ListedColormap for a segmentation mask. Ensures label
+    0 maps to black and all other labels get distinct random colors.
+
+    Parameters
+    ----------
+    mask : np.ndarray
+        Segmentation mask with integer labels. Assumes label 0 is background.
+    seed : int
+        Random seed for color reproducibility.
+
+    Returns
+    -------
+    ListedColormap
+        Colormap with black for background and unique colors for other labels.
+    """
+    n_labels = int(mask.max()) + 1
+    rng = np.random.default_rng(seed)
+    colors = [(0, 0, 0)]
+    colors += list(rng.uniform(0.2, 1.0, size=(n_labels - 1, 3)))
+
+    return ListedColormap(colors)
 
 
 def normalize(img):
@@ -388,3 +417,93 @@ def plot_mips(img, output_path=None, vmax=None):
         plt.savefig(output_path, dpi=200)
     plt.show()
     plt.close(fig)
+
+
+def plot_segmentation_mips(mask):
+    fig, axs = plt.subplots(1, 3, figsize=(10, 4))
+    axs_names = ["XY", "XZ", "YZ"]
+    cmap = make_segmentation_colormap(mask)
+
+    for i in range(3):
+        if len(mask.shape) == 5:
+            mip = np.max(mask[0, 0, ...], axis=i)
+        else:
+            mip = np.max(mask, axis=i)
+
+        axs[i].imshow(mip, cmap=cmap, interpolation="none")
+        axs[i].set_title(axs_names[i], fontsize=16)
+        axs[i].set_xticks([])
+        axs[i].set_yticks([])
+
+    plt.tight_layout()
+    plt.show()
+    plt.close(fig)
+
+
+def relabel_by_size(label_mask):
+    """
+    Relabels a segmentation mask so that larger segments get higher label IDs.
+    Background (label 0) remains 0.
+
+    Parameters
+    ----------
+    label_mask : np.ndarray
+        Integer segmentation mask (3D, 4D, or 5D), with 0 as background.
+
+    Returns
+    -------
+    np.ndarray
+        Relabeled mask with largest segments assigned highest IDs.
+    """
+    flat = label_mask.ravel()
+    max_label = flat.max()
+    sizes = np.bincount(flat)
+
+    # Exclude background (label 0)
+    labels = np.nonzero(sizes)[0]
+    labels = labels[labels != 0]
+
+    # Sort labels by size (ascending)
+    sorted_labels = labels[np.argsort(sizes[labels])]
+
+    # Assign new labels: 1 for smallest, N for largest
+    mapping = np.zeros(max_label + 1, dtype=label_mask.dtype)
+    mapping[sorted_labels] = np.arange(1, len(sorted_labels) + 1, dtype=label_mask.dtype)
+    return mapping[label_mask]
+
+
+def remove_small_segments(label_mask, n):
+    ids, cnts = unique(label_mask, return_counts=True)
+    ids = [i for i, cnt in zip(ids, cnts) if cnt > n and i != 0]
+    ids = mask_except(label_mask, ids)
+    label_mask, _ = renumber(ids, preserve_zero=True, in_place=True)
+    return label_mask
+
+
+def zero_border_3d(img, border_width=64):
+    """
+    Zeros out everything within `border_width` voxels of the border of a 3D image.
+
+    Parameters
+    ----------
+    img : np.ndarray
+        A 3D NumPy array.
+    border_width : int
+        Number of voxels to zero out from each edge. Default is 64.
+
+    Returns
+    -------
+    np.ndarray
+        The input image with the border zeroed out.
+    """
+    assert img.ndim == 3, "Input image must be 3D"
+    img = img.copy()
+    z, y, x = img.shape
+
+    img[:border_width, :, :] = 0         # Top
+    img[-border_width:, :, :] = 0        # Bottom
+    img[:, :border_width, :] = 0         # Front
+    img[:, -border_width:, :] = 0        # Back
+    img[:, :, :border_width] = 0         # Left
+    img[:, :, -border_width:] = 0        # Right
+    return img
