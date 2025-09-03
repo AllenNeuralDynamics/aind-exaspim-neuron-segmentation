@@ -38,7 +38,7 @@ pip install -e .
 
 ## Usage
 
-Here is a simple example of how to segment a 3D image.
+Here’s a basic example of running segmentation and skeletonization on a 3D image.
 
 ```python
 
