@@ -48,4 +48,4 @@ Here is a simple example of how to segment a 3D image.
 For any inquiries, feedback, or contributions, please do not hesitate to contact us. You can reach us via email at anna.grim@alleninstitute.org or connect on [LinkedIn](https://www.linkedin.com/in/anna-m-grim/).
 
 ## License
-supervoxel-loss is licensed under the MIT License.
+aind-exaspim-neuron-segmentation is licensed under the MIT License.
