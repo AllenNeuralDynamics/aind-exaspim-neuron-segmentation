@@ -38,7 +38,7 @@ pip install -e .
 
 ## Usage
 
-Here’s a basic example of running segmentation and skeletonization on a 3D image.
+Here’s a basic example of running segmentation and skeletonization on a 3D image, then saving the results as a ZIP archive of SWC files.
 
 ```python
 
