@@ -20,7 +20,7 @@ The segmentation pipeline consists of three main steps:
   <p>3. <strong>Supervoxel Agglomeration</strong>: Supervoxels are iteratively merged using a graph-based algorithm.</p>
 </blockquote>
 
-In addition, this repository provides tools for skeletonization and exporting the results as a ZIP archive of SWC files.
+In addition, this repository provides tools for skeletonization and saving the result as a ZIP archive of SWC files.
 <br>
 <br>
 
