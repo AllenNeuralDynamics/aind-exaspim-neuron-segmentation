@@ -20,7 +20,7 @@ The segmentation pipeline consists of three main steps:
   <p>3. <strong>Supervoxel Agglomeration</strong>: Supervoxels are iteratively merged using a graph-based algorithm to form full neuron segments.</p>
 </blockquote>
 
-In addition, the repository provides tools for skeletonization and exporting the results as a ZIP archive of SWC files.
+In addition, this repository provides tools for skeletonization and exporting the results as a ZIP archive of SWC files.
 <br>
 <br>
 
