@@ -7,4 +7,25 @@
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen?logo=codecov)
 ![Python](https://img.shields.io/badge/python->=3.10-blue?logo=python)
 
-A Python package for performing neuron segmentation in ExaSPIM image datasets.
+A Python package for performing neuron segmentation in ExaSPIM image datasets, designed for large-scale, high-resolution volumetric data. The pipeline combines deep learning–based affinity prediction with graph-based algorithms to produce accurate neuron reconstructions.
+
+
+## Method
+
+The segmentation pipeline consists of three main steps:
+
+<blockquote>
+  <p>1. <strong>Affinity Prediction</strong>: A 3D CNN predicts voxel affinities indicating which neighboring voxels belong to the same neuron.</p>
+  <p>2. <strong>Watershed Algorithm</strong>: A seeded watershed uses the affinity maps to produce an initial oversegmentation into supervoxels.</p>
+  <p>3. <strong>Supervoxel Agglomeration</strong>: Supervoxels are iteratively merged using a graph-based algorithm to form full neuron segments.</p>
+</blockquote>
+
+In addition, the repository provides tools for skeletonization and exporting the results as a ZIP archive of SWC files.
+<br>
+<br>
+
+<p>
+  <img src="imgs/pipeline.png" width="850" alt="pipeline">
+  <br>
+  <b> Figure: </b>Visualization of segmentation pipeline.
+</p>
