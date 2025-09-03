@@ -39,15 +39,12 @@ class BaseDataset(Dataset):
         label_mask_paths : List[str]
             Paths to corresponding label masks.
         is_instance_segmentation : bool, optional
-            Indication of whether the task is instance segmentation. Default
-            is True.
+            Indication of whether the task is instance segmentation. In this
+            case, the __getiem__ returns affinity channels instead of the
+            label mask. Default is True.
         patch_shape : Tuple[int], optional
             Shape of the 3D patch to extract from the images. Default is
             (128, 128, 128).
-
-        Returns
-        -------
-        None
         """
         # Call parent class
         super().__init__()
@@ -65,7 +62,7 @@ class BaseDataset(Dataset):
 
     def _load_imgs(self, img_paths, is_inputs=True):
         """
-        Load a list of volumetric images.
+        Loads a list of volumetric images.
 
         Parameters
         ----------
@@ -88,6 +85,9 @@ class BaseDataset(Dataset):
         return imgs
 
     def _init_normalization_factors(self):
+        """
+        Compute normalization factors for a list of input images.
+        """
         self.normalization_factors = list()
         desc = "Compute Normalization Factors"
         for img in tqdm(self.input_imgs, desc=desc):
@@ -97,11 +97,11 @@ class BaseDataset(Dataset):
     # --- Read Image Patches ---
     def get_patch(self, img, center):
         """
-        Extract a centered 3D patch from an image.
+        Extracts a centered 3D patch from an image.
 
         Parameters
         ----------
-        img : np.ndarray
+        img : numpy.ndarray
             Full volumetric image.
         center : Tuple[int]
             Center voxel coordinate of patch.
@@ -116,7 +116,7 @@ class BaseDataset(Dataset):
 
     def get_input_patch(self, i, center):
         """
-        Get a normalized input patch from the i-th image.
+        Gets a normalized input patch from the i-th image.
 
         Parameters
         ----------
@@ -136,7 +136,7 @@ class BaseDataset(Dataset):
 
     def get_label_patch(self, i, center):
         """
-        Get a label patch from the i-th label mask.
+        Gets a label patch from the i-th label mask.
 
         Parameters
         ----------
@@ -147,7 +147,7 @@ class BaseDataset(Dataset):
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Label patch with shape (1, D, H, W).
         """
         patch = self.get_patch(self.label_masks[i], center)
@@ -185,10 +185,6 @@ class TrainDataset(BaseDataset):
             (128, 128, 128).
         transform : callable, optional
             A function or callable class for joint image/label augmentation.
-
-        Returns
-        -------
-        None
         """
         # Call parent class
         super().__init__(
@@ -204,12 +200,8 @@ class TrainDataset(BaseDataset):
 
     def compute_wgts(self):
         """
-        Compute sampling weights based on the number of foreground voxels in
+        Computes sampling weights based on the number of foreground voxels in
         each label mask.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -236,19 +228,20 @@ class TrainDataset(BaseDataset):
         Tuple[numpy.ndarray]
             Transformed (or raw) input and label patches as NumPy arrays.
         """
+        # Sample patches
         _, input_patch, label_patch = self.sample_patch()
         if self.transform:
-            return self.transform(input_patch, label_patch)
+            input_patch, label_patch = self.transform(input_patch, label_patch)
+
+        # Check whether to compute affinity channels
+        if self.is_instance_segmentation:
+            return input_patch, img_util.get_affinity_channels(label_patch[0])
         else:
-            return input_patch.copy(), label_patch.copy()
+            return input_patch, label_patch
 
     def __len__(self):
         """
-        Return a fixed-length dataset for training.
-
-        Parameters
-        ----------
-        None
+        Returns a fixed-length dataset for training.
 
         Returns
         -------
@@ -260,11 +253,7 @@ class TrainDataset(BaseDataset):
     # --- Patch Sampling ---
     def sample_patch(self):
         """
-        Sample a random image patch.
-
-        Parameters
-        ----------
-        None
+        Samples a random image patch.
 
         Returns
         -------
@@ -292,7 +281,7 @@ class TrainDataset(BaseDataset):
 
     def sample_center(self, shape):
         """
-        Randomly select a patch center within image bounds.
+        Samples a patch center within image bounds.
 
         Parameters
         ----------
@@ -323,6 +312,8 @@ class ValidateDataset(BaseDataset):
         patch_shape=(128, 128, 128),
     ):
         """
+        Instantiates a ValidateDataset object.
+
         Parameters
         ----------
         input_img_paths : List[str]
@@ -335,10 +326,6 @@ class ValidateDataset(BaseDataset):
         patch_shape : Tuple[int], optional
             Shape of the 3D patch to extract from the images. Default is
             (128, 128, 128).
-
-        Returns
-        -------
-        None
         """
         # Call parent class
         super().__init__(
@@ -353,11 +340,7 @@ class ValidateDataset(BaseDataset):
 
     def generate_examples(self):
         """
-        Generate all valid patch centers across all input volumes.
-
-        Parameters
-        ----------
-        None
+        Generates all valid patch centers across all input volumes.
 
         Returns
         -------
@@ -379,7 +362,7 @@ class ValidateDataset(BaseDataset):
 
     def generate_examples_from_img(self, i):
         """
-        Generate valid patch centers for a single image volume.
+        Generates valid patch centers for a single image volume.
 
         Parameters
         ----------
@@ -413,21 +396,23 @@ class ValidateDataset(BaseDataset):
 
         Returns
         -------
-        tuple
+        Tuple[numpy.ndarray]
             A tuple (input_patch, label_patch) where both are NumPy arrays.
         """
+        # Fetch examples
         i, center = self.example_ids[idx]
         input_patch = self.get_input_patch(i, center)
         label_patch = self.get_label_patch(i, center)
-        return input_patch.copy(), label_patch.copy()
+
+        # Check whether to compute affinity channels
+        if self.is_instance_segmentation:
+            return input_patch, img_util.get_affinity_channels(label_patch[0])
+        else:
+            return input_patch, label_patch
 
     def __len__(self):
         """
-        Return the total number of patches in the validation dataset.
-
-        Parameters
-        ----------
-        None
+        Returns the total number of patches in the validation dataset.
 
         Returns
         -------
