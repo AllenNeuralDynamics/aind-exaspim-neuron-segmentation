@@ -26,19 +26,20 @@ from aind_exaspim_neuron_segmentation.utils import util
 
 class Trainer:
     """
-    Trainer class for managing the full training pipeline of a
-    segmentation model.
+    Trainer class for managing the full training pipeline of a segmentation
+    model.
     """
 
     def __init__(
         self,
         output_dir,
         batch_size=16,
+        is_instance_segmentation=True,
         lr=1e-3,
         max_epochs=1000,
     ):
         """
-        Instantiates Trainer object.
+        Instantiates a Trainer object.
 
         Parameters
         ----------
@@ -47,14 +48,13 @@ class Trainer:
         batch_size : int, optional
             Number of samples per batch for both training and validation.
             Default is 16.
+        is_instance_segmentation : bool, optional
+            Indication of whether the task is instance segmentation. In this
+            case, the model learns affinity channels. Default is True.
         lr : float, optional
             Initial learning rate for the optimizer. Default is 1e-3.
         max_epochs : int, optional
             Maximum number of training epochs. Default is 1000.
-
-        Returns
-        -------
-        None
         """
         # Initializations
         exp_name = "session-" + datetime.today().strftime("%Y%m%d_%H%M")
@@ -67,8 +67,9 @@ class Trainer:
         self.max_epochs = max_epochs
         self.log_dir = log_dir
 
+        output_channels = 3 if is_instance_segmentation else 1
         self.criterion = nn.BCEWithLogitsLoss()
-        self.model = UNet().to("cuda")
+        self.model = UNet(output_channels=output_channels).to("cuda")
         self.optimizer = optim.AdamW(self.model.parameters(), lr=lr)
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=25)
         self.writer = SummaryWriter(log_dir=log_dir)
@@ -76,7 +77,8 @@ class Trainer:
     # --- Core Routines ---
     def run(self, train_dataset, val_dataset):
         """
-        Run the full training and validation loop.
+        Runs the full training and validation for the given maximum number of
+        epochs.
 
         Parameters
         ----------
@@ -84,10 +86,6 @@ class Trainer:
             Dataset used for training.
         val_dataset : torch.utils.data.Dataset
             Dataset used for validation.
-
-        Returns
-        -------
-        None
         """
         # Initializations
         print("\nExperiment:", os.path.basename(os.path.normpath(self.log_dir)))
@@ -112,7 +110,7 @@ class Trainer:
 
     def train_step(self, train_dataloader, epoch):
         """
-        Perform a single training epoch over the provided DataLoader.
+        Performs a single training epoch over the provided DataLoader.
 
         Parameters
         ----------
@@ -123,7 +121,7 @@ class Trainer:
 
         Returns
         -------
-        dict
+        Dict[str, List[float]]
             Dictionary of aggregated training metrics.
         """
         stats = {"f1": None, "precision": [], "recall": [], "loss": []}
@@ -148,7 +146,7 @@ class Trainer:
 
     def validate_step(self, val_dataloader, epoch):
         """
-        Perform a full validation loop over the given dataloader.
+        Performs a full validation loop over the given dataloader.
 
         Parameters
         ----------
@@ -160,7 +158,7 @@ class Trainer:
         Returns
         -------
         tuple
-            stats : dict
+            stats : Dict[str, List[float]]
                 Dictionary of aggregated validation metrics.
             is_best : bool
                 True if the current F1 score is the best so far.
@@ -190,7 +188,7 @@ class Trainer:
 
     def forward_pass(self, x, y):
         """
-        Perform a forward pass through the model and compute loss.
+        Performs a forward pass through the model and computes loss.
 
         Parameters
         ----------
@@ -216,7 +214,7 @@ class Trainer:
     # --- Helpers
     def compute_stats(self, y, hat_y):
         """
-        Compute F1 score, precision, and recall for each sample in a batch.
+        Computes F1 score, precision, and recall for each example in a batch.
 
         Parameters
         ----------
@@ -227,8 +225,8 @@ class Trainer:
 
         Returns
         -------
-        dict
-            Dictionary containing lists of per-sample metrics.
+        Dict[str, List[float]]
+            Dictionary containing lists of per-example metrics.
         """
         y, hat_y = toCPU(y, True), toCPU(hat_y, True)
         stats = {"precision": list(), "recall": list()}
@@ -244,19 +242,15 @@ class Trainer:
 
     def report_stats(self, stats, is_train=True):
         """
-        Print a summary of training or validation statistics.
+        Prints a summary of training or validation statistics.
 
         Parameters
         ----------
         stats : dict
-            Dictionary of metric names to values.
+            Dictionary containing lists of per-example metrics.
         is_train : bool, optional
             Indication of whether "stats" were computed during training step.
             Default is True.
-
-        Returns
-        -------
-        None
         """
         summary = "   Train: " if is_train else "   Val: "
         for key, value in stats.items():
@@ -265,16 +259,12 @@ class Trainer:
 
     def save_model(self, epoch):
         """
-        Save the current model state to a file.
+        Saves the current model state to a file.
 
         Parameters
         ----------
         epoch : int
             Current training epoch.
-
-        Returns
-        -------
-        None
         """
         date = datetime.today().strftime("%Y%m%d")
         filename = f"UNet3d-{date}-{epoch}-{self.best_f1:.4f}.pth"
@@ -283,20 +273,16 @@ class Trainer:
 
     def update_tensorboard(self, stats, epoch, prefix):
         """
-        Log scalar statistics to TensorBoard.
+        Logs scalar statistics to TensorBoard.
 
         Parameters
         ----------
         stats : dict
-            Dictionary of metric names (str) to lists of values.
+            Dictionary of metric names to lists of values.
         epoch : int
             Current training epoch.
         prefix : str
             Prefix to prepend to each metric name when logging.
-
-        Returns
-        -------
-        None
         """
         # Compute avg f1 score
         avg_prec = np.nanmean(stats["precision"])
@@ -312,7 +298,8 @@ class Trainer:
 # --- Helpers ---
 def toCPU(tensor, to_numpy=False):
     """
-    Move PyTorch tensor to the CPU and optionally convert it to a NumPy array.
+    Moves PyTorch tensor to the CPU and optionally converts it to a NumPy
+    array.
 
     Parameters
     ----------
@@ -323,7 +310,7 @@ def toCPU(tensor, to_numpy=False):
 
     Returns
     -------
-    torch.Tensor or np.ndarray
+    torch.Tensor or numpy.ndarray
         Tensor or array on CPU.
     """
     if to_numpy:

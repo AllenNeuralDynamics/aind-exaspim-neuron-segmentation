@@ -24,7 +24,7 @@ from aind_exaspim_neuron_segmentation.utils import util
 # --- Image Reader ---
 def read(img_path):
     """
-    Read an image volume from a supported path based on its extension.
+    Reads an image volume from a supported path based on its extension.
 
     Supported formats:
     - Zarr ('.zarr') from local, GCS, or S3
@@ -53,7 +53,7 @@ def read(img_path):
 
 def _read_zarr(img_path):
     """
-    Read a Zarr volume from local disk, GCS, or S3.
+    Reads a Zarr volume from local disk, GCS, or S3.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ def _read_zarr(img_path):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         First array in the Zarr group.
     """
     if _is_gcs_path(img_path):
@@ -78,7 +78,7 @@ def _read_zarr(img_path):
 
 def _read_n5(img_path):
     """
-    Read an N5 volume from local disk or GCS.
+    Reads an N5 volume from local disk or GCS.
 
     Parameters
     ----------
@@ -87,7 +87,7 @@ def _read_n5(img_path):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         N5 group volume stored at key "volume".
     """
     if _is_gcs_path(img_path):
@@ -100,7 +100,7 @@ def _read_n5(img_path):
 
 def _read_tiff(img_path, storage_options=None):
     """
-    Read a TIFF file from local disk or GCS.
+    Reads a TIFF file from local disk or GCS.
 
     Parameters
     ----------
@@ -111,7 +111,7 @@ def _read_tiff(img_path, storage_options=None):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         Image data from the TIFF file.
     """
     if _is_gcs_path(img_path):
@@ -124,7 +124,7 @@ def _read_tiff(img_path, storage_options=None):
 
 def _is_gcs_path(path):
     """
-    Check if the path is a GCS path.
+    Checks if the path is a GCS path.
 
     Parameters
     ----------
@@ -133,13 +133,14 @@ def _is_gcs_path(path):
     Returns
     -------
     bool
+        Indication of whether the path is a GCS path.
     """
     return path.startswith("gs://")
 
 
 def _is_s3_path(path):
     """
-    Check if the path is an S3 (Amazon S3) path.
+    Checks if the path is an S3 (Amazon S3) path.
 
     Parameters
     ----------
@@ -148,12 +149,13 @@ def _is_s3_path(path):
     Returns
     -------
     bool
+        Indication of whether the path is an S3 path.
     """
     return path.startswith("s3://")
 
 
 # --- Read Patches ---
-def get_patch(img, voxel, shape, from_center=True):
+def get_patch(img, voxel, shape, is_center=True):
     """
     Extracts a patch from an image based on the given voxel coordinate and
     patch shape.
@@ -166,23 +168,23 @@ def get_patch(img, voxel, shape, from_center=True):
         Voxel coordinate used to extract patch.
     shape : Tuple[int]
         Shape of the image patch to extract.
-    from_center : bool, optional
-        Indicates whether the given voxel is the center or top, left, front
-        corner of the patch to be extracted.
+    is_center : bool, optional
+        Indicates whether the given voxel is the center of the patch to be
+        extracted.
 
     Returns
     -------
     numpy.ndarray
         Patch extracted from the given image.
     """
-    s, e = get_start_end(voxel, shape, from_center=from_center)
+    s, e = get_start_end(voxel, shape, is_center=is_center)
     if len(img.shape) == 5:
         return img[0, 0, s[0]: e[0], s[1]: e[1], s[2]: e[2]]
     else:
         return img[s[0]: e[0], s[1]: e[1], s[2]: e[2]]
 
 
-def get_start_end(voxel, shape, from_center=True):
+def get_start_end(voxel, shape, is_center=True):
     """
     Gets the start and end indices of the image patch to be read.
 
@@ -193,7 +195,7 @@ def get_start_end(voxel, shape, from_center=True):
         corner of the patch to be read.
     shape : Tuple[int]
         Shape of the image patch to be read.
-    from_center : bool, optional
+    is_center : bool, optional
         Indication of whether the provided coordinates represent the center of
         the patch or the front-top-left corner. Default is True.
 
@@ -202,54 +204,39 @@ def get_start_end(voxel, shape, from_center=True):
     Tuple[List[int]]
         Start and end indices of the image patch to be read.
     """
-    if from_center:
-        start = [voxel[i] - shape[i] // 2 for i in range(3)]
-        end = [voxel[i] + shape[i] // 2 for i in range(3)]
-    else:
-        start = voxel
-        end = [voxel[i] + shape[i] for i in range(3)]
+    start = [v - s // 2 for v, s in zip(voxel, shape)] if is_center else voxel
+    end = [start[i] + shape[i] for i in range(3)]
     return start, end
 
 
 # --- Helpers ---
-def calculate_offsets(img, window_shape, overlap=(0, 0, 0)):
+def get_affinity_channels(
+    label_mask, edges=((1, 0, 0), (0, 1, 0), (0, 0, 1))
+):
     """
-    Generates a list of 3D coordinates representing the front-top-left corner
-    by sliding a window over a 3D image, given a specified window size and
-    overlap between adjacent windows.
+    Computes affinity channels for a label mask along specified spatial
+    offsets.
 
     Parameters
     ----------
-    img : zarr.core.Array
-        Input 3D image.
-    window_shape : Tuple[int]
-        Shape of the sliding window.
-    overlap : Tuple[int]
-        Overlap between adjacent windows.
+    label_mask : numpy.ndarray
+        A 3D integer array where each voxel contains a label ID for its
+        corresponding segment.
+    edges : Tuple[Tuple[int]], optional
+        Offsets (dx, dy, dz) defining the directions along which affinities
+        are computed. Default is ((1, 0, 0), (0, 1, 0), (0, 0, 1)).
 
     Returns
     -------
-    List[Tuple[int]]
-        Voxel coordinates representing the front-top-left corner.
+    numpy.ndarray
+        A 4D array of shape (C, Z, Y, X), where C is the number of affinity
+        channels. Each channel is a binary mask indicating voxel affinities
+        along that edge direction.
     """
-    # Calculate stride based on the overlap and window size
-    stride = tuple(w - o for w, o in zip(window_shape, overlap))
-    i_stride, j_stride, k_stride = stride
-
-    # Get dimensions of the window
-    if len(img.shape) == 5:
-        _, _, i_dim, j_dim, k_dim = img.shape
-    else:
-        i_dim, j_dim, k_dim = img.shape
-    i_win, j_win, k_win = window_shape
-
-    # Loop over the  with the sliding window
-    voxels = []
-    for i in range(0, i_dim - i_win + 1, i_stride):
-        for j in range(0, j_dim - j_win + 1, j_stride):
-            for k in range(0, k_dim - k_win + 1, k_stride):
-                voxels.append((i, j, k))
-    return voxels
+    affinity_channels = np.zeros((3,) + label_mask.shape)
+    for i, edge in enumerate(edges):
+        affinity_channels[i, ...] = get_affinity_mask(label_mask, edge)
+    return affinity_channels
 
 
 def get_affinity_mask(label_mask, edge):
@@ -267,12 +254,19 @@ def get_affinity_mask(label_mask, edge):
     Returns
     -------
     torch.Tensor
-        Binary tensor, where each element indicates the affinity for each
-        voxel based on the given edge.
-
+        Binary tensor, where each value indicates the affinity between
+        neighboring voxels in the direction of the given edge.
     """
+    # Compute affinity mask
     o1, o2 = get_offset_masks(label_mask, edge)
     aff_mask = (o1 == o2) & (o1 != 0)
+    aff_mask = aff_mask.astype(label_mask.dtype)
+
+    # Pad in the axis of the edge only
+    axis = edge.index(1)
+    pad_width = [(0, 0)] * aff_mask.ndim
+    pad_width[axis] = (0, 1)
+    aff_mask = np.pad(aff_mask, pad_width, mode="constant", constant_values=0)
     return aff_mask.astype(label_mask.dtype)
 
 
@@ -290,7 +284,7 @@ def get_offset_masks(label_mask, edge):
 
     Returns
     -------
-    tuple of torch.Tensor
+    Tuple[torch.Tensor]
         A tuple containing two tensors:
         - "arr1": Subarray extracted based on the edge affinity.
         - "arr2": Subarray extracted based on the negative of the edge
@@ -368,7 +362,7 @@ def make_segmentation_colormap(mask, seed=42):
 
 def normalize(img):
     """
-    Normalize a NumPy image array based on percentile clipping.
+    Normalizes an image array based on percentile clipping.
 
     Parameters
     ----------
@@ -377,7 +371,7 @@ def normalize(img):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         Normalized image with values approximately in [0, 1].
     """
     mn, mx = np.percentile(img, 5), np.percentile(img, 99.9)
@@ -393,10 +387,6 @@ def plot_mips(img, output_path=None, vmax=None):
     ----------
     img : numpy.ndarray
         Input image to generate MIPs from.
-
-    Returns
-    -------
-    None
     """
     vmax = vmax or np.percentile(img, 99.9)
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
@@ -420,6 +410,17 @@ def plot_mips(img, output_path=None, vmax=None):
 
 
 def plot_segmentation_mips(mask):
+    """
+    Plots maximum intensity projections (MIPs) of a segmentation mask.
+
+    Parameters
+    ----------
+    mask : numpy.ndarray
+        Segmentation mask. Can be either:
+        - 3D array (Z, Y, X), or
+        - 5D array (N, C, Z, Y, X), in which case the first sample 
+          and first channel are used.
+    """
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
     axs_names = ["XY", "XZ", "YZ"]
     cmap = make_segmentation_colormap(mask)
@@ -447,12 +448,12 @@ def relabel_by_size(label_mask):
 
     Parameters
     ----------
-    label_mask : np.ndarray
+    label_mask : numpy.ndarray
         Integer segmentation mask (3D, 4D, or 5D), with 0 as background.
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         Relabeled mask with largest segments assigned highest IDs.
     """
     flat = label_mask.ravel()
@@ -472,9 +473,27 @@ def relabel_by_size(label_mask):
     return mapping[label_mask]
 
 
-def remove_small_segments(label_mask, n):
+def remove_small_segments(label_mask, n_voxels):
+    """
+    Removes small connected segments from a label mask.
+
+    Parameters
+    ----------
+    label_mask : numpy.ndarray
+        Integer array representing a segmentation mask. Each unique 
+        nonzero value corresponds to a distinct segment.
+    n_voxels : int
+        Minimum size (in voxels) for a segment to be kept.
+
+    Returns
+    -------
+    numpy.ndarray
+        A new label mask of the same shape as the input, with only 
+        the retained segments renumbered contiguously. Background 
+        voxels remain labeled as 0.
+    """
     ids, cnts = unique(label_mask, return_counts=True)
-    ids = [i for i, cnt in zip(ids, cnts) if cnt > n and i != 0]
+    ids = [i for i, cnt in zip(ids, cnts) if cnt > n_voxels and i != 0]
     ids = mask_except(label_mask, ids)
     label_mask, _ = renumber(ids, preserve_zero=True, in_place=True)
     return label_mask
@@ -482,28 +501,29 @@ def remove_small_segments(label_mask, n):
 
 def zero_border_3d(img, border_width=64):
     """
-    Zeros out everything within `border_width` voxels of the border of a 3D image.
+    Zeroes out everything within "border_width`" voxels of the border of a 3D
+    image.
 
     Parameters
     ----------
-    img : np.ndarray
+    img : numpy.ndarray
         A 3D NumPy array.
     border_width : int
         Number of voxels to zero out from each edge. Default is 64.
 
     Returns
     -------
-    np.ndarray
-        The input image with the border zeroed out.
+    numpy.ndarray
+        Input image with the border zeroed out.
     """
     assert img.ndim == 3, "Input image must be 3D"
     img = img.copy()
     z, y, x = img.shape
 
-    img[:border_width, :, :] = 0         # Top
-    img[-border_width:, :, :] = 0        # Bottom
-    img[:, :border_width, :] = 0         # Front
-    img[:, -border_width:, :] = 0        # Back
-    img[:, :, :border_width] = 0         # Left
-    img[:, :, -border_width:] = 0        # Right
+    img[:border_width, :, :] = 0   # Top
+    img[-border_width:, :, :] = 0  # Bottom
+    img[:, :border_width, :] = 0   # Front
+    img[:, -border_width:, :] = 0  # Back
+    img[:, :, :border_width] = 0   # Left
+    img[:, :, -border_width:] = 0  # Right
     return img
