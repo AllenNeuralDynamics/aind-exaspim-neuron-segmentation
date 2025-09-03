@@ -16,7 +16,7 @@ The segmentation pipeline consists of three main steps:
 
 <blockquote>
   <p>1. <strong>Affinity Prediction</strong>: 3D CNN predicts affinities between neighboring voxels.</p>
-  <p>2. <strong>Watershed Algorithm</strong>: Seeded watershed converts affinities into an initial oversegmentation into supervoxels.</p>
+  <p>2. <strong>Watershed Algorithm</strong>: Seeded watershed transforms affinities into an initial supervoxel oversegmentation.</p>
   <p>3. <strong>Supervoxel Agglomeration</strong>: Supervoxels are iteratively merged using a graph-based algorithm.</p>
 </blockquote>
 
