@@ -15,8 +15,8 @@ A Python package for performing neuron segmentation in ExaSPIM image datasets, d
 The segmentation pipeline consists of three main steps:
 
 <blockquote>
-  <p>1. <strong>Affinity Prediction</strong>: 3D CNN predicts affinities indicating which neighboring voxels belong to the same neuron.</p>
-  <p>2. <strong>Watershed Algorithm</strong>: Seeded watershed uses the affinities to produce an initial oversegmentation into supervoxels.</p>
+  <p>1. <strong>Affinity Prediction</strong>: 3D CNN predicts affinities between neighboring voxels.</p>
+  <p>2. <strong>Watershed Algorithm</strong>: Seeded watershed uses affinities to produce an initial oversegmentation into supervoxels.</p>
   <p>3. <strong>Supervoxel Agglomeration</strong>: Supervoxels are iteratively merged using a graph-based algorithm to form full neuron segments.</p>
 </blockquote>
 
