@@ -29,3 +29,9 @@ In addition, the repository provides tools for skeletonization and exporting the
   <br>
   <b> Figure: </b>Visualization of segmentation pipeline.
 </p>
+
+## Installation
+To use the software, in the root directory, run
+```bash
+pip install -e .
+```
