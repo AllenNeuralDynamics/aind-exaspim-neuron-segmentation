@@ -11,13 +11,16 @@ using agglomerative watershed, and optionally skeletonizes the result.
 
 """
 
+from io import StringIO
 from tqdm import tqdm
 
 import itertools
 import kimimaro
 import numpy as np
+import os
 import torch
 import waterz
+import zipfile
 
 from aind_exaspim_neuron_segmentation.machine_learning.unet3d import UNet3D
 from aind_exaspim_neuron_segmentation.utils import img_util
@@ -136,7 +139,7 @@ def _predict_batch(img, model, starts, patch_shape, trim=8):
     patch_shape : Tuple[int]
         Shape of 3D patch expected by the model.
     trim : int, optional
-        Number of voxels to trim from the edges of each patch in the output. 
+        Number of voxels to trim from the edges of each patch in the output.
         Default is 8.
 
     Returns
@@ -236,7 +239,20 @@ def affinities_to_segmentation(
 
 
 def segmentation_to_zipped_swcs(segmentation, zip_path):
-    pass
+    """
+    Converts a labeled segmentation volume into skeletons and saves them as
+    SWC files in a ZIP archive.
+
+    Parameters
+    ----------
+    segmentation : numpy.ndarray
+        3D array of integer labels representing a segmentation volume. Each
+        unique nonzero integer corresponds to a segment.
+    zip_path : str
+        Path to the output ZIP archive where SWC files will be saved.
+    """
+    skeleton_dict = skeletonize(segmentation)
+    skeletons_to_zipped_swcs(skeleton_dict, zip_path)
 
 
 def skeletonize(segmentation):
@@ -255,48 +271,65 @@ def skeletonize(segmentation):
         Dictionary that maps segment IDs to skeletons.
     """
     skeleton_dict = kimimaro.skeletonize(
-      segmentation,
-      teasar_params={
-        'scale': 1.25,
-        'const': 450,
-        'pdrf_exponent': 4,
-        'pdrf_scale': 100000,
-        'soma_detection_threshold': 1000,
-        'soma_acceptance_threshold': 3500,
-        'soma_invalidation_scale': 1.0,
-        'soma_invalidation_const': 300,
-        'max_paths': None,
-      },
-      anisotropy=(1, 1, 1),
-      fix_borders=True,
-      fill_holes=True,
-      parallel=1,
-      progress=False,
+        segmentation,
+        teasar_params={
+            'scale': 1.25,
+            'const': 450,
+            'pdrf_exponent': 4,
+            'pdrf_scale': 100000,
+            'soma_detection_threshold': 1000,
+            'soma_acceptance_threshold': 3500,
+            'soma_invalidation_scale': 1.0,
+            'soma_invalidation_const': 300,
+            'max_paths': None,
+          },
+        anisotropy=(1.0, 1.0, 1.0),
+        fix_borders=True,
+        fill_holes=True,
+        parallel=1,
+        progress=False,
     )
     return skeleton_dict
 
 
-def to_swc(graph, skel, path, permute=[0, 1, 2], scale=[1, 1, 1], shift=[0, 0, 0]):
-    root = sample(list(graph.nodes), 1)[0]
-    swc = []
-    queue = [(-1, root)]
-    visited = set()
-    reindex = dict()
-    while len(queue) > 0:
-        parent, child = queue.pop(0)
-        xyz = skel.vertices[child]
-        entry = to_world(xyz, permute, scale, shift)
-        entry.extend([skel.radius[child], int(parent)])
-        swc.append(entry)
-        visited.add(child)
-        reindex[child] = len(swc)
-        for nb in list(graph.neighbors(child)):
-            if nb not in visited:
-                queue.append((reindex[child], nb))
-    write_swc(path, swc)
+def skeletons_to_zipped_swcs(skeleton_dict, zip_path):
+    """
+    Save a collection of skeletons as SWC files inside a ZIP archive.
+
+    Parameters
+    ----------
+    skeleton_dict : Dict[int, osteoid.skeleton.Skeleton]
+        Dictionary mapping segment IDs (int) to skeleton objects.
+    zip_path : str
+        Path to the output ZIP archive. If the file exists, it will be
+        overwritten.
+    """
+    with zipfile.ZipFile(zip_path, "w") as zip_writer:
+        for segment_id, skeleton in skeleton_dict.items():
+            filename = f"{segment_id}.swc"
+            swc_content = skeleton.to_swc()
+            zip_writer.writestr(filename, swc_content)
 
 
 def voxelize_skeletons(skeleton_dict, img_shape):
+    """
+    Converts a dictionary of skeletons into a labeled 3D voxel volume.
+
+    Parameters
+    ----------
+    skeleton_dict : Dict[int, osteoid.skeleton.Skeleton]
+        Dictionary mapping segment IDs (int) to skeleton objects. Each
+        skeleton must have a "vertices" attribute that is an array-like
+        of shape (N, 3) representing the 3D coordinates of N points.
+    img_shape : Tuple[int]
+        Shape of the output 3D volume (D, H, W).
+
+    Returns
+    -------
+    numpy.ndarray
+        3D integer array of shape "img_shape" where voxels occupied by
+        skeletons are labeled with their segment ID.
+    """
     img = np.zeros(img_shape, dtype=int)
     for segment_id, skeleton in skeleton_dict.items():
         voxels = skeleton.vertices.astype(int)
