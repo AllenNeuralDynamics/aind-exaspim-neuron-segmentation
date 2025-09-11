@@ -77,10 +77,6 @@ zip_path = "output-path"
 inference.segmentation_to_zipped_swcs(segmentation, zip_path)
 ```
 
-Here is an example of skeletonizing the segmentation and saving the result as a ZIP archive of SWC files.
-
-```python
-```
 
 ## Train
 Here's an example of training a model,
