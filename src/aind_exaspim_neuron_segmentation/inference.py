@@ -28,7 +28,7 @@ def predict(
     affinity_mode=True,
     batch_size=32,
     brightness_clip=1000,
-    normalization_percentiles=(1, 99.5),
+    normalization_percentiles=(5, 99.9),
     patch_shape=(96, 96, 96),
     overlap=(32, 32, 32),
     trim=8,
