@@ -90,6 +90,8 @@ def predict(
         # Extract batch and run model
         starts = list(itertools.islice(starts_generator, batch_size))
         patches = _predict_batch(img, model, starts, patch_shape, trim=trim)
+
+        # Add batch predictions to result
         for patch, start in zip(patches, starts):
             # Compute start and end coordinates
             s = [max(si + trim, 0) for si in start]
@@ -105,7 +107,7 @@ def predict(
             pred_slices_full = (slice(None),) + pred_slices
             patch_slices_full = (slice(None),) + patch_slices
 
-            # Add patch to prediction
+            # Add patch prediction to result
             accum_pred[pred_slices_full] += patch[patch_slices_full]
             accum_wgt[pred_slices] += 1
 
