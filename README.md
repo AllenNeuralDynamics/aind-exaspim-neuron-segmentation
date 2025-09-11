@@ -35,7 +35,7 @@ To use the software, install c++ dependencies:
 ```bash
 sudo apt install libboost-dev
 ```
-then run the following in the root directory, 
+then run the following in the root directory:
 ```bash
 pip install -e .
 ```
