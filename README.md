@@ -36,7 +36,7 @@ To use the software, in the root directory, run
 pip install -e .
 ```
 
-## Predict
+## Train
 
 Here’s an example of running the segmentation pipeline.
 
