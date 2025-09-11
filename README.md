@@ -38,10 +38,35 @@ pip install -e .
 
 ## Usage
 
-Here’s an example of running segmentation and skeletonization on a 3D image, then saving the results as a ZIP archive of SWC files.
+Here’s an example of running the segmentation pipeline.
 
 ```python
+from aind_exaspim_neuron_segmentation import inference
+from aind_exaspim_neuron_segmentation.utils import img_util
 
+
+# Parameters
+affinity_mode = True
+patch_shape = (96, 96, 96)
+
+# Load model
+model_path = "path-to-model-weights"
+model = inference.load_model(model_path, affinity_mode=affinity_mode)
+
+# Read image
+img_path = "path-to-image"
+img = img_util.read(img_path)
+
+# Predict affinites
+affinites = inference.predict(
+    img,
+    model,
+    affinity_mode=affinity_mode,
+    patch_shape=patch_shape,
+)
+
+# Generate segmentation via watershed and supervoxel agglomeration
+segmentation = inference.affinities_to_segmentation(affinites)
 ```
 
 ## Contact Information
