@@ -19,12 +19,16 @@ dynamic = ["version"]
 dependencies = [
     'fastremap',
     'google-cloud-storage',
+    'gcsfs',
+    'import kimimaro',
     'matplotlib',
     's3fs==2024.12.0',
     'scikit-image',
     'scikit-learn',
     'tifffile',
     'torch',
+    'torchvision',
+    'waterz @ git+https://github.com/anna-grim/waterz.git@main'
     'zarr'
 ]
 
