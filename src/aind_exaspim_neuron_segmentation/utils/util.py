@@ -25,11 +25,7 @@ def mkdir(path, delete=False):
         Path of directory to be created.
     delete : bool, optional
         Indication of whether to delete directory at path if it already
-        exists. The default is False.
-
-    Returns
-    -------
-    None
+        exists. Default is False.
     """
     if delete:
         rmdir(path)
@@ -45,10 +41,6 @@ def rmdir(path):
     ----------
     path : str
         Path to directory to be removed if it exists.
-
-    Returns
-    -------
-    None
     """
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -100,7 +92,7 @@ def list_gcs_paths(bucket_name, prefix):
     Returns
     -------
     List[str]
-        Path to files in that prefix
+        Path to files in that prefix.
     """
     paths = list()
     storage_client = storage.Client()

@@ -155,62 +155,7 @@ def _is_s3_path(path):
     return path.startswith("s3://")
 
 
-# --- Read Patches ---
-def get_patch(img, voxel, shape, is_center=True):
-    """
-    Extracts a patch from an image based on the given voxel coordinate and
-    patch shape.
-
-    Parameters
-    ----------
-    img : zarr.core.Array
-         A Zarr object representing an image.
-    voxel : Tuple[int]
-        Voxel coordinate used to extract patch.
-    shape : Tuple[int]
-        Shape of the image patch to extract.
-    is_center : bool, optional
-        Indicates whether the given voxel is the center of the patch to be
-        extracted.
-
-    Returns
-    -------
-    numpy.ndarray
-        Patch extracted from the given image.
-    """
-    s, e = get_start_end(voxel, shape, is_center=is_center)
-    if len(img.shape) == 5:
-        return img[0, 0, s[0]: e[0], s[1]: e[1], s[2]: e[2]]
-    else:
-        return img[s[0]: e[0], s[1]: e[1], s[2]: e[2]]
-
-
-def get_start_end(voxel, shape, is_center=True):
-    """
-    Gets the start and end indices of the image patch to be read.
-
-    Parameters
-    ----------
-    voxel : Tuple[int]
-        Voxel coordinate that specifies either the center or front-top-left
-        corner of the patch to be read.
-    shape : Tuple[int]
-        Shape of the image patch to be read.
-    is_center : bool, optional
-        Indication of whether the provided coordinates represent the center of
-        the patch or the front-top-left corner. Default is True.
-
-    Return
-    ------
-    Tuple[List[int]]
-        Start and end indices of the image patch to be read.
-    """
-    start = [v - s // 2 for v, s in zip(voxel, shape)] if is_center else voxel
-    end = [start[i] + shape[i] for i in range(3)]
-    return start, end
-
-
-# --- Helpers ---
+# --- Compute Affinity Channels ---
 def get_affinity_channels(
     label_mask, edges=((1, 0, 0), (0, 1, 0), (0, 0, 1))
 ):
@@ -229,7 +174,7 @@ def get_affinity_channels(
 
     Returns
     -------
-    numpy.ndarray
+    affinity_channels : numpy.ndarray
         A 4D array of shape (C, Z, Y, X), where C is the number of affinity
         channels. Each channel is a binary mask indicating voxel affinities
         along that edge direction.
@@ -254,9 +199,9 @@ def get_affinity_mask(label_mask, edge):
 
     Returns
     -------
-    torch.Tensor
-        Binary tensor, where each value indicates the affinity between
-        neighboring voxels in the direction of the given edge.
+    aff_mask : numpy.ndarray
+        Affinity mask for label mask based on the given edge affinity
+        direction.
     """
     # Compute affinity mask
     o1, o2 = get_offset_masks(label_mask, edge)
@@ -285,11 +230,10 @@ def get_offset_masks(label_mask, edge):
 
     Returns
     -------
-    Tuple[torch.Tensor]
-        A tuple containing two tensors:
-        - "arr1": Subarray extracted based on the edge affinity.
-        - "arr2": Subarray extracted based on the negative of the edge
-                  affinity.
+    offset_mask1 : numpy.ndarray
+         Subarray extracted based on the edge affinity.
+    offset_mask2 : numpy.ndarray
+        Subarray extracted based on the negative of the edge affinity.
     """
     shape = label_mask.shape
     edge = np.array(edge)
@@ -309,70 +253,18 @@ def get_offset_masks(label_mask, edge):
     return offset_mask1, offset_mask2
 
 
-def get_patch_slices(start, patch_shape, img_shape):
-    """
-    Compute slices for a 3D patch within an image, clipped to image
-    boundaries.
-
-    Parameters
-    ----------
-    start : Tuple[int]
-        Starting indices (z, y, x) of the patch.
-    patch_shape : Tuple[int]
-        Desired patch shape (depth, height, width).
-    img_shape : Tuple[int]
-        Shape of image that the patch is contained within.
-
-    Returns
-    -------
-    Tuple[slice]
-        Slices to index the image: (slice_z, slice_y, slice_x).
-    """
-    slices = tuple(
-        slice(s, min(s + ps, dim))
-        for s, ps, dim in zip(start, patch_shape, img_shape)
-    )
-    return slices
-
-
-def list_block_paths(prefix):
-    """
-    Lists the GCS paths to image blocks associated with a given brain ID.
-
-    Parameters
-    ----------
-    prefix : str
-        Path to directory containing image blocks.
-
-    Returns
-    -------
-    img_paths : List[str]
-        GCS paths (gs://...) to the image blocks.
-    """
-    img_paths, label_paths = list(), list()
-    for block_prefix in util.list_gcs_subprefixes("allen-nd-goog", prefix):
-        img_path = util.find_subprefix_with_keyword(
-            "allen-nd-goog", block_prefix, "input."
-        )
-        label_path = util.find_subprefix_with_keyword(
-            "allen-nd-goog", block_prefix, "Fill_Label_Mask."
-        )
-        img_paths.append(f"gs://allen-nd-goog/{img_path}")
-        label_paths.append(f"gs://allen-nd-goog/{label_path}")
-    return img_paths, label_paths
-
-
+# --- Visualization ---
 def make_segmentation_colormap(mask, seed=42):
     """
-    Create a matplotlib ListedColormap for a segmentation mask. Ensures label
+    Creates a matplotlib ListedColormap for a segmentation mask. Ensures label
     0 maps to black and all other labels get distinct random colors.
 
     Parameters
     ----------
     mask : numpy.ndarray
         Segmentation mask with integer labels. Assumes label 0 is background.
-    seed : int
-        Random seed for color reproducibility.
+    seed : int, optional
+        Random seed for color reproducibility. Default is 42.
 
     Returns
     -------
@@ -385,38 +277,6 @@ def make_segmentation_colormap(mask, seed=42):
     colors += list(rng.uniform(0.2, 1.0, size=(n_labels - 1, 3)))
 
     return ListedColormap(colors)
-
-
-def normalize(img, apply_clip=True, normalization_percentiles=(1, 99.5)):
-    """
-    Normalizes an image array based on percentile clipping and optionally
-    clips the values to the range [0, 1].
-
-    Parameters
-    ----------
-    img : numpy.ndarray
-        Input image array to normalize.
-    apply_clip : bool, optional
-        Indication of whether to clip image intensities to the range [0, 1].
-        Default is True.
-    normalization_percentiles : Tuple[int], optional
-        Lower and upper percentiles used for normalization. Default is
-        (1, 99.5).
-
-    Returns
-    -------
-    numpy.ndarray
-        Normalized image with values in [0, 1] if clipping is applied.
-    """
-    # Normalize image
-    mn, mx = np.percentile(img, normalization_percentiles)
-    img = (img - mn) / max(mx - mn, 1)
-
-    # Apply clipping (optional)
-    if apply_clip:
-        return np.clip(img, 0, 1)
-    else:
-        return img
 
 
 def plot_mips(img, output_path=None, vmax=None):
@@ -482,89 +342,176 @@ def plot_segmentation_mips(mask):
     plt.close(fig)
 
 
-def relabel_by_size(label_mask):
+# --- Helpers ---
+def add_padding(patch, patch_shape):
     """
-    Relabels a segmentation mask so that larger segments get higher label IDs.
-    Background (label 0) remains 0.
+    Pads a 3D patch with zeros to reach the desired patch shape.
 
     Parameters
     ----------
-    label_mask : numpy.ndarray
-        Integer segmentation mask (3D, 4D, or 5D), with 0 as background.
+    patch : numpy.ndarray
+        3D array representing the patch to be padded.
+    patch_shape : Tuple[int]
+        Shape of the 3D patch expected by a model.
 
     Returns
     -------
     numpy.ndarray
-        Relabeled mask with largest segments assigned highest IDs.
+        Zero-padded patch with the specified patch shape.
     """
-    flat = label_mask.ravel()
-    max_label = flat.max()
-    sizes = np.bincount(flat)
-
-    # Exclude background (label 0)
-    labels = np.nonzero(sizes)[0]
-    labels = labels[labels != 0]
-
-    # Sort labels by size (ascending)
-    sorted_labels = labels[np.argsort(sizes[labels])]
-
-    # Assign new labels: 1 for smallest, N for largest
-    mapping = np.zeros(max_label + 1, dtype=label_mask.dtype)
-    mapping[sorted_labels] = np.arange(1, len(sorted_labels) + 1, dtype=label_mask.dtype)
-    return mapping[label_mask]
+    pad_width = [(0, ps - s) for ps, s in zip(patch_shape, patch.shape)]
+    return np.pad(patch, pad_width, mode="constant", constant_values=0)
 
 
-def remove_small_segments(label_mask, n_voxels):
+def get_patch(img, center, shape):
     """
-    Removes small connected segments from a label mask.
+    Extracts a patch from an image based on the given voxel coordinate and
+    patch shape.
+
+    Parameters
+    ----------
+    img : ArrayLike
+         A Zarr object representing an image.
+    center : Tuple[int]
+        Center of image patch to be read.
+    shape : Tuple[int]
+        Shape of image patch to be read.
+
+    Returns
+    -------
+    numpy.ndarray
+        Patch extracted from the given image.
+    """
+    s = get_slices(center, shape)
+    return img[s] if img.ndim == 3 else img[(0, 0, *s)]
+
+
+def get_patch_slices(start, patch_shape, img_shape):
+    """
+    Computes slices for a 3D patch within an image, clipped to image
+    boundaries.
+
+    Parameters
+    ----------
+    start : Tuple[int]
+        Starting indices (z, y, x) of the patch.
+    patch_shape : Tuple[int]
+        Desired patch shape (depth, height, width).
+    img_shape : Tuple[int]
+        Shape of image that the patch is contained within.
+
+    Returns
+    -------
+    Tuple[slice]
+        Slices to index the image: (slice_z, slice_y, slice_x).
+    """
+    slices = tuple(
+        slice(s, min(s + ps, d))
+        for s, ps, d in zip(start, patch_shape, img_shape)
+    )
+    return slices
+
+
+def get_slices(center, shape):
+    """
+    Gets the start and end indices of an image patch to be read.
+
+    Parameters
+    ----------
+    center : Tuple[int]
+        Center of image patch to be read.
+    shape : Tuple[int]
+        Shape of image patch to be read.
+
+    Return
+    ------
+    Tuple[slice]
+        Slice objects used to index into the image.
+    """
+    start = [c - d // 2 for c, d in zip(center, shape)]
+    return tuple(slice(s, s + d) for s, d in zip(start, shape))
+
+
+def list_block_paths(prefix):
+    """
+    Lists the GCS paths to image blocks associated with a given brain ID.
+
+    Parameters
+    ----------
+    prefix : str
+        Path to directory containing image blocks.
+
+    Returns
+    -------
+    img_paths : List[str]
+        GCS paths (gs://...) to the image blocks.
+    """
+    img_paths, label_paths = list(), list()
+    for block_prefix in util.list_gcs_subprefixes("allen-nd-goog", prefix):
+        img_path = util.find_subprefix_with_keyword(
+            "allen-nd-goog", block_prefix, "input."
+        )
+        label_path = util.find_subprefix_with_keyword(
+            "allen-nd-goog", block_prefix, "Fill_Label_Mask."
+        )
+        img_paths.append(f"gs://allen-nd-goog/{img_path}")
+        label_paths.append(f"gs://allen-nd-goog/{label_path}")
+    return img_paths, label_paths
+
+
+def normalize(img, apply_clip=True, percentiles=(1, 99.5)):
+    """
+    Normalizes an image array based on percentile clipping and optionally
+    clips the values to the range [0, 1].
+
+    Parameters
+    ----------
+    img : numpy.ndarray
+        Input image array to normalize.
+    apply_clip : bool, optional
+        Indication of whether to clip image intensities to the range [0, 1].
+        Default is True.
+    percentiles : Tuple[int], optional
+        Lower and upper percentiles used for normalization. Default is
+        (1, 99.5).
+
+    Returns
+    -------
+    numpy.ndarray
+        Normalized image with values in [0, 1] if clipping is applied.
+    """
+    # Normalize image
+    mn, mx = np.percentile(img, percentiles)
+    img = (img - mn) / max(mx - mn, 1)
+
+    # Apply clipping (optional)
+    if apply_clip:
+        return np.clip(img, 0, 1)
+    else:
+        return img
+
+
+def remove_small_segments(label_mask, min_size):
+    """
+    Removes small segments from a label mask.
 
     Parameters
     ----------
     label_mask : numpy.ndarray
         Integer array representing a segmentation mask. Each unique
         nonzero value corresponds to a distinct segment.
-    n_voxels : int
+    min_size : int
         Minimum size (in voxels) for a segment to be kept.
 
     Returns
     -------
-    numpy.ndarray
+    label_mask : numpy.ndarray
         A new label mask of the same shape as the input, with only
         the retained segments renumbered contiguously. Background
         voxels remain labeled as 0.
     """
     ids, cnts = unique(label_mask, return_counts=True)
-    ids = [i for i, cnt in zip(ids, cnts) if cnt > n_voxels and i != 0]
+    ids = [i for i, cnt in zip(ids, cnts) if cnt > min_size and i != 0]
     ids = mask_except(label_mask, ids)
     label_mask, _ = renumber(ids, preserve_zero=True, in_place=True)
     return label_mask
-
-
-def zero_border_3d(img, border_width=64):
-    """
-    Zeroes out everything within "border_width`" voxels of the border of a 3D
-    image.
-
-    Parameters
-    ----------
-    img : numpy.ndarray
-        A 3D NumPy array.
-    border_width : int
-        Number of voxels to zero out from each edge. Default is 64.
-
-    Returns
-    -------
-    numpy.ndarray
-        Input image with the border zeroed out.
-    """
-    assert img.ndim == 3, "Input image must be 3D"
-    img = img.copy()
-    z, y, x = img.shape
-
-    img[:border_width, :, :] = 0   # Top
-    img[-border_width:, :, :] = 0  # Bottom
-    img[:, :border_width, :] = 0   # Front
-    img[:, -border_width:, :] = 0  # Back
-    img[:, :, :border_width] = 0   # Left
-    img[:, :, -border_width:] = 0  # Right
-    return img
