@@ -25,11 +25,10 @@ from aind_exaspim_neuron_segmentation.utils import util
 def read(img_path):
     """
     Reads an image volume from a supported path based on its extension.
-
     Supported formats:
-    - Zarr ('.zarr') from local, GCS, or S3
-    - N5 ('.n5') from local or GCS
-    - TIFF ('.tif', '.tiff') from local or GCS
+        - Zarr ('.zarr') from local, GCS, or S3
+        - N5 ('.n5') from local or GCS
+        - TIFF ('.tif', '.tiff') from local or GCS
 
     Parameters
     ----------
@@ -38,8 +37,8 @@ def read(img_path):
 
     Returns
     -------
-    np.ndarray
-        Loaded image volume as a NumPy array.
+    numpy.ndarray
+        Loaded image volume.
     """
     if ".zarr" in img_path:
         return _read_zarr(img_path)
@@ -58,12 +57,12 @@ def _read_zarr(img_path):
     Parameters
     ----------
     img_path : str
-        Path to the Zarr directory.
+        Path to a Zarr dataset.
 
     Returns
     -------
-    numpy.ndarray
-        First array in the Zarr group.
+    zarr.hierarchy.Group
+        A Zarr group opened in read-only mode.
     """
     if _is_gcs_path(img_path):
         fs = gcsfs.GCSFileSystem(anon=False)
@@ -73,7 +72,7 @@ def _read_zarr(img_path):
         store = s3fs.S3Map(root=img_path, s3=fs)
     else:
         store = zarr.DirectoryStore(img_path)
-    return zarr.open(store, mode="r")[0]
+    return zarr.open(store, mode="r")
 
 
 def _read_n5(img_path):
@@ -87,15 +86,15 @@ def _read_n5(img_path):
 
     Returns
     -------
-    numpy.ndarray
-        N5 group volume stored at key "volume".
+    zarr.hierarchy.Group
+        A Zarr group opened in read-only mode.
     """
     if _is_gcs_path(img_path):
         fs = gcsfs.GCSFileSystem(anon=False)
         store = zarr.n5.N5FSStore(img_path, s=fs)
     else:
         store = zarr.n5.N5Store(img_path)
-    return zarr.open(store, mode="r")["volume"]
+    return zarr.open(store, mode="r")
 
 
 def _read_tiff(img_path, storage_options=None):
@@ -129,6 +128,7 @@ def _is_gcs_path(path):
     Parameters
     ----------
     path : str
+        Path to be checked.
 
     Returns
     -------
@@ -140,11 +140,12 @@ def _is_gcs_path(path):
 
 def _is_s3_path(path):
     """
-    Checks if the path is an S3 (Amazon S3) path.
+    Checks if the path is an S3 path.
 
     Parameters
     ----------
     path : str
+        Path to be checked.
 
     Returns
     -------
@@ -308,6 +309,32 @@ def get_offset_masks(label_mask, edge):
     return offset_mask1, offset_mask2
 
 
+def get_patch_slices(start, patch_shape, img_shape):
+    """
+    Compute slices for a 3D patch within an image, clipped to image
+    boundaries.
+
+    Parameters
+    ----------
+    start : Tuple[int]
+        Starting indices (z, y, x) of the patch.
+    patch_shape : Tuple[int]
+        Desired patch shape (depth, height, width).
+    img_shape : Tuple[int]
+        Shape of image that the patch is contained within.
+
+    Returns
+    -------
+    Tuple[slice]
+        Slices to index the image: (slice_z, slice_y, slice_x).
+    """
+    slices = tuple(
+        slice(s, min(s + ps, dim))
+        for s, ps, dim in zip(start, patch_shape, img_shape)
+    )
+    return slices
+
+
 def list_block_paths(prefix):
     """
     Lists the GCS paths to image blocks associated with a given brain ID.
@@ -342,7 +369,7 @@ def make_segmentation_colormap(mask, seed=42):
 
     Parameters
     ----------
-    mask : np.ndarray
+    mask : numpy.ndarray
         Segmentation mask with integer labels. Assumes label 0 is background.
     seed : int
         Random seed for color reproducibility.
@@ -360,22 +387,36 @@ def make_segmentation_colormap(mask, seed=42):
     return ListedColormap(colors)
 
 
-def normalize(img):
+def normalize(img, apply_clip=True, normalization_percentiles=(1, 99.5)):
     """
-    Normalizes an image array based on percentile clipping.
+    Normalizes an image array based on percentile clipping and optionally
+    clips the values to the range [0, 1].
 
     Parameters
     ----------
-    img : np.ndarray
+    img : numpy.ndarray
         Input image array to normalize.
+    apply_clip : bool, optional
+        Indication of whether to clip image intensities to the range [0, 1].
+        Default is True.
+    normalization_percentiles : Tuple[int], optional
+        Lower and upper percentiles used for normalization. Default is
+        (1, 99.5).
 
     Returns
     -------
     numpy.ndarray
-        Normalized image with values approximately in [0, 1].
+        Normalized image with values in [0, 1] if clipping is applied.
     """
-    mn, mx = np.percentile(img, 5), np.percentile(img, 99.9)
-    return (img - mn) / mx
+    # Normalize image
+    mn, mx = np.percentile(img, normalization_percentiles)
+    img = (img - mn) / max(mx - mn, 1)
+
+    # Apply clipping (optional)
+    if apply_clip:
+        return np.clip(img, 0, 1)
+    else:
+        return img
 
 
 def plot_mips(img, output_path=None, vmax=None):
@@ -418,7 +459,7 @@ def plot_segmentation_mips(mask):
     mask : numpy.ndarray
         Segmentation mask. Can be either:
         - 3D array (Z, Y, X), or
-        - 5D array (N, C, Z, Y, X), in which case the first sample 
+        - 5D array (N, C, Z, Y, X), in which case the first sample
           and first channel are used.
     """
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
@@ -480,7 +521,7 @@ def remove_small_segments(label_mask, n_voxels):
     Parameters
     ----------
     label_mask : numpy.ndarray
-        Integer array representing a segmentation mask. Each unique 
+        Integer array representing a segmentation mask. Each unique
         nonzero value corresponds to a distinct segment.
     n_voxels : int
         Minimum size (in voxels) for a segment to be kept.
@@ -488,8 +529,8 @@ def remove_small_segments(label_mask, n_voxels):
     Returns
     -------
     numpy.ndarray
-        A new label mask of the same shape as the input, with only 
-        the retained segments renumbered contiguously. Background 
+        A new label mask of the same shape as the input, with only
+        the retained segments renumbered contiguously. Background
         voxels remain labeled as 0.
     """
     ids, cnts = unique(label_mask, return_counts=True)
