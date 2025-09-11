@@ -28,7 +28,7 @@ dependencies = [
     'tifffile',
     'torch',
     'torchvision',
-    'waterz @ git+https://github.com/anna-grim/waterz.git@main'
+    'waterz @ git+https://github.com/anna-grim/waterz.git@main',
     'zarr'
 ]
 
