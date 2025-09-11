@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class UNet(nn.Module):
+class UNet3D(nn.Module):
     """
     3D U-Net architecture for 3D image data, suitable for tasks such as
     segmentation.
@@ -50,7 +50,7 @@ class UNet(nn.Module):
             is 1.
         """
         # Call parent class
-        super(UNet, self).__init__()
+        super(UNet3D, self).__init__()
 
         # Initializations
         _channels = (32, 64, 128, 256, 512)

@@ -37,20 +37,21 @@ class ImageTransforms:
 
     def __call__(self, input_img, label_mask):
         """
-        Applies geometric transforms to the input image and segmentation
-        patch.
+        Applies geometric transforms to the input image and label mask.
 
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with shape (H, W, D).
+            Input image with shape (D, H, W).
         label_mask : numpy.ndarray
-            Label mask with shape (H, W, D).
+            Label mask with shape (D, H, W).
 
         Returns
         -------
-        numpy.ndarray
-            Transformed input image and label mask.
+        input_img : numpy.ndarray
+            Transformed input image
+        label_mask : numpy.ndarray
+            Transformed label mask.
         """
         # Geometric transforms
         for transform in self.geometric_transforms:
@@ -85,14 +86,16 @@ class RandomFlip3D:
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with shape (H, W, D).
+            Input image with shape (D, H, W).
         label_mask : numpy.ndarray
-            Label mask with shape (H, W, D).
+            Label mask with shape (D, H, W).
 
         Returns
         -------
-        numpy.ndarray
-            Flipped input image and label mask.
+        input_img : numpy.ndarray
+            Flipped input image.
+        label_mask : numpy.ndarray
+            Flipped label mask.
         """
         for axis in self.axes:
             if random.random() > 0.5:
@@ -127,14 +130,16 @@ class RandomRotation3D:
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with shape (H, W, D).
+            Input image with shape (D, H, W).
         label_mask : numpy.ndarray
-            Label mask with shape (H, W, D).
+            Label mask with shape (D, H, W).
 
         Returns
         -------
-        numpy.ndarray
-            Rotated input image and label mask.
+        input_img : numpy.ndarray
+            Rotated input image.
+        label_mask : numpy.ndarray 
+            Rotated label mask.
         """
         for axes in self.axes:
             if random.random() > 0.4:
@@ -167,14 +172,16 @@ class RandomScale3D:
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with shape (H, W, D).
+            Input image with shape (D, H, W).
         label_mask : numpy.ndarray
-            Label mask with shape (H, W, D).
+            Label mask with shape (D, H, W).
 
         Returns
         -------
-        numpy.ndarray
-            Rescaled input image and label mask.
+        input_img : numpy.ndarray
+            Rescaled input image.
+        label_mask : numpy.ndarray 
+            Rescaled label mask.
         """
         # Sample new image shape
         alpha = np.random.uniform(self.scale_range[0], self.scale_range[1])
@@ -209,8 +216,7 @@ class RandomContrast3D:
         Parameters
         ----------
         factor_range : Tuple[float], optional
-            Tuple of integers representing the range of contrast factors.
-            Default is (0.9, 1.1).
+            Range of contrast factors. Default is (0.9, 1.1).
         """
         self.factor_range = factor_range
 
@@ -221,7 +227,7 @@ class RandomContrast3D:
         Parameters
         ----------
         img : numpy.ndarray
-            image with shape (H, W, D).
+            image with shape (D, H, W).
 
         Returns
         -------
@@ -285,7 +291,7 @@ def rotate3d(img, angle, axes):
 
     Returns
     -------
-    numpy.ndarray
+    img : numpy.ndarray
         Rotated image.
     """
     img = rotate(

@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from aind_exaspim_neuron_segmentation.machine_learning.unet3d import UNet
+from aind_exaspim_neuron_segmentation.machine_learning.unet3d import UNet3D
 from aind_exaspim_neuron_segmentation.utils import util
 
 
@@ -69,7 +69,7 @@ class Trainer:
 
         output_channels = 3 if is_instance_segmentation else 1
         self.criterion = nn.BCEWithLogitsLoss()
-        self.model = UNet(output_channels=output_channels).to("cuda")
+        self.model = UNet3D(output_channels=output_channels).to("cuda")
         self.optimizer = optim.AdamW(self.model.parameters(), lr=lr)
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=25)
         self.writer = SummaryWriter(log_dir=log_dir)
@@ -121,7 +121,7 @@ class Trainer:
 
         Returns
         -------
-        Dict[str, List[float]]
+        stats : Dict[str, List[float]]
             Dictionary of aggregated training metrics.
         """
         stats = {"f1": None, "precision": [], "recall": [], "loss": []}
@@ -157,11 +157,10 @@ class Trainer:
 
         Returns
         -------
-        tuple
-            stats : Dict[str, List[float]]
-                Dictionary of aggregated validation metrics.
-            is_best : bool
-                True if the current F1 score is the best so far.
+        stats : Dict[str, List[float]]
+            Dictionary of aggregated validation metrics.
+        is_best : bool
+            True if the current F1 score is the best so far.
         """
         stats = {"f1": None, "precision": [], "recall": [], "loss": []}
         with torch.no_grad():
@@ -199,11 +198,10 @@ class Trainer:
 
         Returns
         -------
-        tuple
-            hat_y : torch.Tensor
-                Model predictions.
-            loss : torch.Tensor
-                Computed loss value.
+        hat_y : torch.Tensor
+            Model predictions.
+        loss : torch.Tensor
+            Computed loss value.
         """
         x = x.to("cuda", dtype=torch.float)
         y = y.to("cuda", dtype=torch.float)
@@ -225,7 +223,7 @@ class Trainer:
 
         Returns
         -------
-        Dict[str, List[float]]
+        stats : Dict[str, List[float]]
             Dictionary containing lists of per-example metrics.
         """
         y, hat_y = toCPU(y, True), toCPU(hat_y, True)

@@ -27,8 +27,9 @@ class BaseDataset(Dataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
+        brightness_clip=1000,
         normalization_percentiles=(1, 99.5),
-        patch_shape=(128, 128, 128),
+        patch_shape=(96, 96, 96),
     ):
         """
         Instantiates a BaseDataset object.
@@ -42,12 +43,14 @@ class BaseDataset(Dataset):
         affinity_mode : bool, optional
             If True, the model predicts affinities; if False, it predicts
             foreground–background. Default is True.
+        brightness_clip : float, optional
+            Maximum brightness value for voxel intensities. Default is 1000.
         normalization_percentiles, Tuple[int]
             Lower and upper percentiles used for normalization. Default is
             (1, 99.5).
         patch_shape : Tuple[int], optional
-            Shape of the 3D patch to extract from the images. Default is
-            (128, 128, 128).
+            Shape of 3D patches to extract from the images. Default is
+            (96, 96, 96).
         """
         # Call parent class
         super().__init__()
@@ -56,6 +59,7 @@ class BaseDataset(Dataset):
         self.input_img_paths = input_img_paths
         self.label_mask_paths = label_mask_paths
         self.affinity_mode = affinity_mode
+        self.brightness_clip = brightness_clip
         self.normalization_percentiles = normalization_percentiles
         self.patch_shape = patch_shape
 
@@ -127,12 +131,17 @@ class BaseDataset(Dataset):
 
         Returns
         -------
-        numpy.ndarray
+        patch : numpy.ndarray
             Normalized input patch with shape (1, D, H, W).
         """
+        # Get image patch
         patch = self.get_patch(self.input_imgs[i], center)
+        patch = np.minimum(patch, self.brightness_clip)
+
+        # Normalize image patch
         mn, mx = self.normalization_factors[i]
-        return (np.clip(patch, 0, 1000) - mn) / mx
+        patch = (patch - mn) / (mx - mn + 1e-8)
+        return patch
 
     def get_label_patch(self, i, center):
         """
@@ -165,8 +174,9 @@ class TrainDataset(BaseDataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
+        brightness_clip=1000,
         normalization_percentiles=(1, 99.5),
-        patch_shape=(128, 128, 128),
+        patch_shape=(96, 96, 96),
         transform=None
     ):
         """
@@ -181,12 +191,14 @@ class TrainDataset(BaseDataset):
         affinity_mode : bool, optional
             If True, the model predicts affinities; if False, it predicts
             foreground–background. Default is True.
+        brightness_clip : float, optional
+            Maximum brightness value for voxel intensities. Default is 1000.
         normalization_percentiles, Tuple[int]
             Lower and upper percentiles used for normalization. Default is
             (1, 99.5).
         patch_shape : Tuple[int], optional
             Shape of the 3D patch to extract from the images. Default is
-            (128, 128, 128).
+            (96, 96, 96).
         transform : callable, optional
             A function or callable class for joint image/label augmentation.
         """
@@ -195,6 +207,7 @@ class TrainDataset(BaseDataset):
             input_img_paths,
             label_mask_paths,
             affinity_mode=affinity_mode,
+            brightness_clip=brightness_clip,
             patch_shape=patch_shape
         )
 
@@ -257,29 +270,36 @@ class TrainDataset(BaseDataset):
     # --- Patch Sampling ---
     def sample_patch(self):
         """
-        Samples a random image patch.
+        Randomly samples a patch from the dataset, biased toward either
+        foreground or background regions.
 
         Returns
         -------
-        Tuple
-            (image index, input patch, label patch), where patches are NumPy
-            arrays.
+        i : int
+            Index of the selected image.
+        input_patch : numpy.ndarray
+            Extracted input patch centered at the sampled location.
+        label_patch : numpy.ndarray
+            Extracted label patch centered at the sampled location.
         """
         # Search for foreground or background patch
         cnt = 0
         is_foreground = np.random.random() > 0.15
         i = np.random.choice(np.arange(len(self.input_imgs)), p=self.wgts)
         while cnt < 25:
+            # Sample patch
             cnt += 1
             center = self.sample_center(self.label_masks[i].shape)
             label_patch = self.get_label_patch(i, center)
+
+            # Check if patch is foreground or background
             foreground_cnt = (label_patch > 0).sum()
             if foreground_cnt > 4000 and is_foreground:
                 break
             elif foreground_cnt == 0 and not is_foreground:
                 break
 
-        # Reformat patches
+        # Get input patch
         input_patch = self.get_input_patch(i, center)
         return i, input_patch, label_patch
 
@@ -313,8 +333,9 @@ class ValidateDataset(BaseDataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
+        brightness_clip=1000,
         normalization_percentiles=(1, 99.5),
-        patch_shape=(128, 128, 128),
+        patch_shape=(96, 96, 96),
     ):
         """
         Instantiates a ValidateDataset object.
@@ -328,18 +349,21 @@ class ValidateDataset(BaseDataset):
         affinity_mode : bool, optional
             If True, the model predicts affinities; if False, it predicts
             foreground–background. Default is True.
+        brightness_clip : float, optional
+            Maximum brightness value for voxel intensities. Default is 1000.
         normalization_percentiles, Tuple[int]
             Lower and upper percentiles used for normalization. Default is
             (1, 99.5).
         patch_shape : Tuple[int], optional
-            Shape of the 3D patch to extract from the images. Default is
-            (128, 128, 128).
+            Shape of the 3D patches to extract from images. Default is
+            (96, 96, 96).
         """
         # Call parent class
         super().__init__(
             input_img_paths,
             label_mask_paths,
             affinity_mode=affinity_mode,
+            brightness_clip=brightness_clip,
             patch_shape=patch_shape
         )
 
@@ -352,7 +376,7 @@ class ValidateDataset(BaseDataset):
 
         Returns
         -------
-        List[tuple]
+        foreground : List[Tuple[int]]
             List of (image_index, patch_center) tuples for validation patches.
         """
         # Extract foreground/background patches
@@ -410,7 +434,7 @@ class ValidateDataset(BaseDataset):
         -------
         input_patch : numpy.ndarray
             Input image patch.
-        affs_patch / label_patch : numpy.ndarray
+        affs_patch or label_patch : numpy.ndarray
             Affinity maps of label patch if "affinity_mode" is True;
             otherwise, binary mask of foreground-background.
         """
