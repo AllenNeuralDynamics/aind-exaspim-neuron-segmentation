@@ -11,10 +11,6 @@ into a full 3D volume.
 
 """
 
-from scipy import ndimage as ndi
-from skimage.feature import peak_local_max
-from skimage.filters import threshold_otsu
-from skimage.segmentation import watershed
 from tqdm import tqdm
 
 import itertools
@@ -22,88 +18,101 @@ import numpy as np
 import torch
 import waterz
 
+from aind_exaspim_neuron_segmentation.machine_learning.unet3d import UNet
 from aind_exaspim_neuron_segmentation.utils import img_util
 
 
 def predict(
     img,
     model,
+    affinity_mode=True,
     batch_size=32,
-    patch_size=96,
-    overlap=16,
+    normalization_percentiles=(1, 99.5),
+    patch_shape=(128, 128, 128),
+    overlap=(32, 32, 32),
     trim=8,
     verbose=True
 ):
     """
-    Denoises a 3D image by processing patches in batches and running deep
-    learning model.
+    Predicts affinities or foreground–background maps for a 3D image by
+    splitting it into overlapping patches, batching the patches, and
+    processing each batch with the model.
 
     Parameters
     ----------
     img : numpy.ndarray
         Input 3D image of shape (1, 1, depth, height, width).
     model : torch.nn.Module
-        PyTorch model to perform prediction on patches.
+        PyTorch model used for prediction.
+    affinity_mode : bool, optional
+        If True, the model predicts affinities; if False, it predicts
+        foreground–background. Default is True.
     batch_size : int, optional
         Number of patches to process in a batch. Default is 32.
-    patch_size : int, optional
-        Size of the cubic patch extracted from the image. Default is 64.
-    overlap : int, optional
-        Number of voxels to overlap between patches. Default is 16.
+    normalization_percentiles : Tuple[int], optional
+        Lower and upper percentiles used for normalization. Default is
+        (0.5, 99.9).
+    overlap : Tuple[int], optional
+        Number of voxels in overlap between patches along each dimension.
+        Default is (16, 16, 16).
+    patch_shape : Tuple[int], optional
+        Shape of the 3D patch expected by the model. Default is (128, 128, 128).
     verbose : bool, optional
         Whether to show a tqdm progress bar. Default is True.
 
     Returns
     -------
-    coords : List[Tuple[int]]
-        List of (i, j, k) starting coordinates of patches processed.
-    preds : List[numpy.ndarray]
-        List of predicted patches (3D arrays) matching the patch size.
+    pred : numpy.ndarray
+        Prediction produced by the given model applied to an image.
     """
-    # Adjust image dimenions
+    # Preprocess image
+    img = img_util.normalize(
+        img, normalization_percentiles=normalization_percentiles
+    )
     while len(img.shape) < 5:
         img = img[np.newaxis, ...]
 
     # Initializations
-    starts_generator = generate_patch_starts(img, patch_size, overlap)
-    n_starts = count_patches(img, patch_size, overlap)
-    img = img_util.normalize(np.clip(img, 0, 1000))
+    n_channels = 3 if affinity_mode else 1
+    n_patches = count_patches(img, patch_shape, overlap)
+    starts_generator = generate_patch_starts(img.shape, patch_shape, overlap)
+    pred = np.zeros((n_channels,) + img.shape[2:])
 
     # Main
-    pbar = tqdm(total=n_starts, desc="Segment") if verbose else None
-    segmentation = np.zeros_like(img, dtype=np.float32)
-    for i in range(0, n_starts, batch_size):
-        # Run model
+    pbar = tqdm(total=n_patches, desc="Predict") if verbose else None
+    for _ in range(0, n_patches, batch_size):
+        # Extract batch and run model
         starts = list(itertools.islice(starts_generator, batch_size))
-        patches = _predict_batch(img, model, starts, patch_size, trim)
+        patches = _predict_batch(img, model, starts, patch_shape, trim=trim)
 
         # Store result
         for patch, start in zip(patches, starts):
             start = [max(s + trim, 0) for s in start]
             end = [start[i] + patch.shape[i] for i in range(3)]
             end = [min(e, s) for e, s in zip(end, img.shape[2:])]
-            segmentation[
+            pred[
                 0, 0, start[0]:end[0], start[1]:end[1], start[2]:end[2]
             ] = patch[: end[0] - start[0], : end[1] - start[1], : end[2] - start[2]]
         pbar.update(len(starts)) if verbose else None
-    return segmentation
+    return pred
 
 
 def predict_patch(patch, model):
     """
-    Denoised a single 3D patch using the provided model.
+    Predicts affinities or foreground–background maps for a single 3D image
+    patch.
 
     Parameters
     ----------
+    patch : numpy.ndarray
+        3D input patch to process.
     model : torch.nn.Module
         PyTorch model used for prediction.
-    patch : numpy.ndarray
-        3D input patch to denoise.
 
     Returns
     -------
     numpy.ndarray
-        Denoised 3D patch with the same shape as input patch.
+        Prediction produced by the given model applied to a single patch.
     """
     patch = to_tensor(img_util.normalize(patch))
     with torch.no_grad():
@@ -111,56 +120,47 @@ def predict_patch(patch, model):
     return np.array(output_tensor.cpu())
 
 
-def _predict_batch(img, model, starts, patch_size, trim=6):
+def _predict_batch(img, model, starts, patch_shape, trim=8):
     # Subroutine
-    def process_patch(i):
-        start = starts[i]
-        end = [min(s + patch_size, d) for s, d in zip(start, (D, H, W))]
-        patch = img[0, 0, start[0]:end[0], start[1]:end[1], start[2]:end[2]]
-        return add_padding(patch, patch_size)
+    def process_patch(start):
+        s = img_util.get_patch_slices(start, patch_shape, img.shape[2:])
+        patch = img[(0, 0, *s)]
+        return add_padding(patch, patch_shape)
 
     # Process patches
-    D, H, W = img.shape[2:]
-    inputs = np.empty((len(starts),) + (patch_size,) * 3, dtype=np.float32)
+    inputs = np.empty((len(starts), 1,) + patch_shape, dtype=np.float32)
     for i in range(len(starts)):
-        inputs[i, ...] = process_patch(i)
+        inputs[i, 0, ...] = process_patch(starts[i])
 
     # Run model
-    inputs = batch_to_tensor(inputs)
+    inputs = to_tensor(inputs)
     with torch.no_grad():
         outputs = torch.sigmoid(model(inputs)).cpu().numpy()
     return outputs[:, 0, trim:-trim, trim:-trim, trim:-trim]
 
 
-def run_watershed(pred):
-    # Distance transform
-    img = pred > max(threshold_otsu(pred), 0.4)
-    distance = ndi.distance_transform_edt(img)
+# --- Segmentation and Skeletonization ---
+def affinities_to_segmentation(affinities, thresholds=[0.1, 0.2, 0.3]):
+    """
+    Converts affinity maps into a segmentation using agglomerative watershed.
 
-    # Find local maxima to use as markers
-    local_maxi = peak_local_max(distance, labels=img, exclude_border=False)
+    Parameters
+    ----------
+    affinities : numpy.ndarray
+        Affinity map with shape (3, H, W, D). where each channel encodes voxel
+        affinities along a spatial axis.
+    thresholds : List[float], optional
+        List of merge thresholds passed to Waterz. Final segmentation is taken
+        from the last threshold in the list. Defaults to [0.1, 0.2, 0.3].
 
-    # Create marker array
-    markers = np.zeros_like(img, dtype=int)
-    for i, coord in enumerate(local_maxi, start=1):
-        markers[tuple(coord)] = i
-
-    # Run watershed
-    return watershed(-distance, markers, mask=img)
-
-
-def run_agglomerative_watershed(pred, thresholds=[0.1, 0.2, 0.3]):
-    # Compute foregroun mask
-    binary_mask = pred > min(max(threshold_otsu(pred), 0.4), 0.6)
-
-    # Prepare agglomeration input
-    restricted_pred = pred.copy()
-    restricted_pred[binary_mask == 0] = 0
-    pseudo_affs = np.stack(3 * [restricted_pred[0, 0, ...]], axis=0)
-
-    # Agglomeration
+    Returns
+    -------
+    numpy.ndarray
+        A segmentation corresponding to the final agglomeration produced by
+        Waterz.
+    """
     segmentations = waterz.agglomerate(
-        pseudo_affs,
+        affinities,
         thresholds,
         aff_threshold_low=0.1,
         aff_threshold_high=0.99,
@@ -169,7 +169,7 @@ def run_agglomerative_watershed(pred, thresholds=[0.1, 0.2, 0.3]):
 
 
 # --- Helpers ---
-def add_padding(patch, patch_size):
+def add_padding(patch, patch_shape):
     """
     Pads a 3D patch with zeros to reach the desired patch shape.
 
@@ -177,41 +177,19 @@ def add_padding(patch, patch_size):
     ----------
     patch : numpy.ndarray
         3D array representing the patch to be padded.
-    patch_size : int
-        Target size for each dimension after padding.
+    patch_shape : Tuple[int]
+        Shape of the 3D patch expected by model.
 
     Returns
     -------
     numpy.ndarray
-        Zero-padded patch with shape (patch_size, patch_size, patch_size).
+        Zero-padded patch with the specified patch shape.
     """
-    pad_width = [
-        (0, patch_size - patch.shape[0]),
-        (0, patch_size - patch.shape[1]),
-        (0, patch_size - patch.shape[2]),
-    ]
+    pad_width = [(0, ps - s) for ps, s in zip(patch_shape, patch.shape)]
     return np.pad(patch, pad_width, mode="constant", constant_values=0)
 
 
-def batch_to_tensor(arr):
-    """
-    Converts a NumPy array containing a batch of inputs to a PyTorch tensor
-    and moves it to the GPU.
-
-    Parameters
-    ----------
-    arr : numpy.ndarray
-        Array to be converted, with shape (batch_size, depth, height, width).
-
-    Returns
-    -------
-    torch.Tensor
-        Tensor on GPU, with shape (batch_size, 1, depth, height, width).
-    """
-    return to_tensor(arr[:, np.newaxis, ...])
-
-
-def count_patches(img, patch_size, overlap):
+def count_patches(img, patch_shape, overlap):
     """
     Counts the number of patches within a 3D image for a given patch size
     and overlap between patches.
@@ -220,24 +198,51 @@ def count_patches(img, patch_size, overlap):
     ----------
     img : torch.Tensor or numpy.ndarray
         Input image tensor with shape (batch, channels, depth, height, width).
-    patch_size : int
-        Size of each cubic patch along each spatial dimension.
-    overlap : int
-        Number of voxels that adjacent patches overlap.
+    patch_shape : Tuple[int], optional
+        Shape of the 3D patch expected by the model.
+    overlap : Tuple[int], optional
+        Number of voxels in overlap between patches along each dimension.
 
     Returns
     -------
     int
         Number of patches.
     """
-    stride = patch_size - overlap
-    d_range = range(0, img.shape[2] - patch_size + stride, stride)
-    h_range = range(0, img.shape[3] - patch_size + stride, stride)
-    w_range = range(0, img.shape[4] - patch_size + stride, stride)
+    stride = tuple(ps - ov for ps, ov in zip(patch_shape, overlap))
+    d_range = range(0, img.shape[2] - patch_shape[0] + stride[0], stride[0])
+    h_range = range(0, img.shape[3] - patch_shape[1] + stride[1], stride[1])
+    w_range = range(0, img.shape[4] - patch_shape[2] + stride[2], stride[2])
     return len(d_range) * len(h_range) * len(w_range)
 
 
-def generate_patch_starts(img, patch_size, overlap):
+def load_model(path, affinity_mode=True, device="cuda"):
+    """
+    Loads a pretrained UNet model from a file.
+
+    Parameters
+    ----------
+    path : str
+        Path to the saved model weights (e.g., .pt or .pth file).
+    affinity_mode : bool, optional
+        If True, the model predicts affinities; if False, it predicts
+        foreground–background. Default is True.
+    device : str, optional
+        Device to load the model onto. Default is "cuda".
+
+    Returns
+    -------
+    torch.nn.Module
+        UNet model loaded with weights and set to evaluation mode.
+    """
+    output_channels = 3 if affinity_mode else 1
+    model = UNet(output_channels=output_channels)
+    model.load_state_dict(torch.load(path, map_location=device))
+    model.to(device)
+    model.eval()
+    return model
+
+
+def generate_patch_starts(img_shape, patch_shape, overlap):
     """
     Generates starting coordinates for 3D patches extracted from an image
     tensor, based on specified patch size and overlap.
@@ -245,22 +250,28 @@ def generate_patch_starts(img, patch_size, overlap):
     Parameters
     ----------
     img : torch.Tensor or numpy.ndarray
-        Input image tensor with shape (batch, channels, depth, height, width).
-    patch_size : int
-        The size of each cubic patch along each spatial dimension.
-    overlap : int
-        Number of voxels that adjacent patches overlap.
+        Shape of the input image.
+    patch_shape : Tuple[int]
+        Shape of the 3D patch expected by the model.
+    overlap : Tuple[int]
+        Number of voxels in overlap between patches along each dimension.
 
     Returns
     -------
     generator
         Generates starting coordinates for image patches.
     """
-    stride = patch_size - overlap
-    for i in range(0, img.shape[2] - patch_size + stride, stride):
-        for j in range(0, img.shape[3] - patch_size + stride, stride):
-            for k in range(0, img.shape[4] - patch_size + stride, stride):
-                yield (i, j, k)
+    # Compute the range of starting voxel coordinate along each dimension
+    assert len(img_shape) == 5, "Image must have shape (1, 1, D, H, W)"
+    stride = tuple(ps - o for ps, o in zip(patch_shape, overlap))
+    ranges = [
+        range(0, d - ps + s, s)
+        for d, ps, s in zip(img_shape[2:], patch_shape, stride)
+    ]
+
+    # Generate all starting voxel coordinates
+    for start in itertools.product(*ranges):
+        yield start
 
 
 def to_tensor(arr):
@@ -276,7 +287,7 @@ def to_tensor(arr):
     Returns
     -------
     torch.Tensor
-        Tensor on GPU, with shape (1, 1, depth, height, width).
+        Tensor on GPU, with shape (1, 1, D, H, W).
     """
     while (len(arr.shape)) < 5:
         arr = arr[np.newaxis, ...]
