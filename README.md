@@ -31,7 +31,11 @@ In addition, this repository provides tools for skeletonization and saving the r
 </p>
 
 ## Installation
-To use the software, in the root directory, run
+To use the software, install c++ dependencies:
+```bash
+sudo apt install libboost-dev
+```
+then run the following in the root directory, 
 ```bash
 pip install -e .
 ```
