@@ -17,6 +17,15 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
+    'fastremap',
+    'google-cloud-storage',
+    'matplotlib',
+    's3fs==2024.12.0',
+    'scikit-image',
+    'scikit-learn',
+    'tifffile',
+    'torch',
+    'zarr'
 ]
 
 [project.optional-dependencies]
