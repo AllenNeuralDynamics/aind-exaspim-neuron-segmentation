@@ -69,6 +69,11 @@ affinites = inference.predict(
 segmentation = inference.affinities_to_segmentation(affinites)
 ```
 
+Here is an example of skeletonizing the segmentation and saving the result as a ZIP archive of SWC files.
+
+```python
+'''
+
 ## Train
 Here's an example of training a model,
 
