@@ -36,7 +36,7 @@ To use the software, in the root directory, run
 pip install -e .
 ```
 
-## Train
+## Predict
 
 Here’s an example of running the segmentation pipeline.
 
@@ -69,7 +69,7 @@ affinites = inference.predict(
 segmentation = inference.affinities_to_segmentation(affinites)
 ```
 
-## Predict
+## Train
 Here's an example of training a model,
 
 ```python
