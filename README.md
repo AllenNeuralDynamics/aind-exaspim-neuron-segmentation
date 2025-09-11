@@ -10,7 +10,7 @@
 A Python package for performing neuron segmentation in ExaSPIM image datasets, designed for large-scale, high-resolution volumetric data. The pipeline combines deep learning–based affinity prediction with graph-based algorithms to produce accurate neuron reconstructions.
 
 
-## Method
+## Overview
 
 The segmentation pipeline consists of three main steps:
 
