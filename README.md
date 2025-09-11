@@ -25,7 +25,7 @@ In addition, this repository provides tools for skeletonization and saving the r
 <br>
 
 <p>
-  <img src="imgs/pipeline.png" width="850" alt="pipeline">
+  <img src="imgs/pipeline.png" width="900" alt="pipeline">
   <br>
   <b> Figure: </b>Visualization of segmentation pipeline.
 </p>
