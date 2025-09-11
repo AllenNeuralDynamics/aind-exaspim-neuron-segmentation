@@ -69,6 +69,43 @@ affinites = inference.predict(
 segmentation = inference.affinities_to_segmentation(affinites)
 ```
 
+## Predict
+Here's an example of training a model,
+
+```python
+from aind_exaspim_neuron_segmentation.machine_learning.data_handling import TrainDataset, ValidateDataset
+from aind_exaspim_neuron_segmentation.machine_learning.train import Trainer
+
+
+# Initializations
+patch_shape = (96, 96, 96)
+output_path = "path-to-save-ckpts"
+
+# Paths
+train_img_paths = "paths-to-train-images"
+train_label_paths = "paths-to-train-label-masks"
+val_img_paths = "paths-to-validation-images"
+val_label_paths = "paths-to-validation-label-masks"
+
+# Datasets
+    train_dataset = TrainDataset(
+        train_img_paths,
+        train_label_paths,
+        affinity_mode=affinity_mode,
+        patch_shape=patch_shape,
+    )
+    val_dataset = ValidateDataset(
+        val_img_paths,
+        val_label_paths,
+        affinity_mode=affinity_mode,
+        patch_shape=patch_shape
+    )
+
+# Train
+trainer = Trainer(output_dir)
+trainer.run(train_dataset, val_dataset)
+```
+
 ## Contact Information
 For any inquiries, feedback, or contributions, please do not hesitate to contact us. You can reach us via email at anna.grim@alleninstitute.org or connect on [LinkedIn](https://www.linkedin.com/in/anna-m-grim/).
 
