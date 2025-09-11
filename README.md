@@ -73,7 +73,7 @@ affinites = inference.predict(
 segmentation = inference.affinities_to_segmentation(affinites)
 
 # Save result as ZIP archive of SWC files
-zip_path = "output-path"
+zip_path = "path-to-zip"
 inference.segmentation_to_zipped_swcs(segmentation, zip_path)
 ```
 
