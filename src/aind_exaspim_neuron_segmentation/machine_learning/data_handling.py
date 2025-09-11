@@ -4,7 +4,7 @@ Created on Wed June 25 5:00:00 2025
 @author: Anna Grim
 @email: anna.grim@alleninstitute.org
 
-Routines for loading data during training and inference.
+Routines for loading data during training.
 
 """
 
@@ -26,7 +26,8 @@ class BaseDataset(Dataset):
         self,
         input_img_paths,
         label_mask_paths,
-        is_instance_segmentation=True,
+        affinity_mode=True,
+        normalization_percentiles=(1, 99.5),
         patch_shape=(128, 128, 128),
     ):
         """
@@ -38,10 +39,12 @@ class BaseDataset(Dataset):
             Paths to input volumetric images.
         label_mask_paths : List[str]
             Paths to corresponding label masks.
-        is_instance_segmentation : bool, optional
-            Indication of whether the task is instance segmentation. In this
-            case, the __getiem__ returns affinity channels instead of the
-            label mask. Default is True.
+        affinity_mode : bool, optional
+            If True, the model predicts affinities; if False, it predicts
+            foreground–background. Default is True.
+        normalization_percentiles, Tuple[int]
+            Lower and upper percentiles used for normalization. Default is
+            (1, 99.5).
         patch_shape : Tuple[int], optional
             Shape of the 3D patch to extract from the images. Default is
             (128, 128, 128).
@@ -52,34 +55,31 @@ class BaseDataset(Dataset):
         # Instance attributes
         self.input_img_paths = input_img_paths
         self.label_mask_paths = label_mask_paths
-        self.is_instance_segmentation = is_instance_segmentation
+        self.affinity_mode = affinity_mode
+        self.normalization_percentiles = normalization_percentiles
         self.patch_shape = patch_shape
 
         # Load images
-        self.input_imgs = self._load_imgs(input_img_paths, is_inputs=True)
-        self.label_masks = self._load_imgs(label_mask_paths, is_inputs=False)
+        self.input_imgs = self._load_imgs(input_img_paths)
+        self.label_masks = self._load_imgs(label_mask_paths)
         self._init_normalization_factors()
 
-    def _load_imgs(self, img_paths, is_inputs=True):
+    def _load_imgs(self, img_paths):
         """
-        Loads a list of volumetric images.
+        Loads a list of 3D images.
 
         Parameters
         ----------
         img_paths : List[str]
             Paths to images.
-        is_inputs : bool, optional
-            If True, prints 'Inputs' during progress. Otherwise prints
-            'Label Masks'.
 
         Returns
         -------
         List[numpy.ndarray]
-            Image volumes as NumPy arrays.
+            Loaded images as NumPy arrays.
         """
         imgs = list()
-        desc = "Inputs" if is_inputs else "Label Masks"
-        for img_path in tqdm(img_paths, desc=desc):
+        for img_path in tqdm(img_paths, desc="Loading Images"):
             img = img_util.read(img_path)
             imgs.append(img)
         return imgs
@@ -91,7 +91,7 @@ class BaseDataset(Dataset):
         self.normalization_factors = list()
         desc = "Compute Normalization Factors"
         for img in tqdm(self.input_imgs, desc=desc):
-            mn, mx = np.percentile(img[:], [5, 99.9])
+            mn, mx = np.percentile(img[:], self.normalization_percentiles)
             self.normalization_factors.append((mn, mx))
 
     # --- Read Image Patches ---
@@ -108,7 +108,7 @@ class BaseDataset(Dataset):
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Image patch with shape (1, D, H, W).
         """
         patch = img_util.get_patch(img, center, self.patch_shape)
@@ -127,7 +127,7 @@ class BaseDataset(Dataset):
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Normalized input patch with shape (1, D, H, W).
         """
         patch = self.get_patch(self.input_imgs[i], center)
@@ -151,7 +151,7 @@ class BaseDataset(Dataset):
             Label patch with shape (1, D, H, W).
         """
         patch = self.get_patch(self.label_masks[i], center)
-        if not self.is_instance_segmentation:
+        if not self.affinity_mode:
             patch = (patch > 0).astype(int)
         return patch
 
@@ -164,7 +164,8 @@ class TrainDataset(BaseDataset):
         self,
         input_img_paths,
         label_mask_paths,
-        is_instance_segmentation=True,
+        affinity_mode=True,
+        normalization_percentiles=(1, 99.5),
         patch_shape=(128, 128, 128),
         transform=None
     ):
@@ -177,9 +178,12 @@ class TrainDataset(BaseDataset):
             Paths to input volumetric images.
         label_mask_paths : List[str]
             Paths to corresponding label masks.
-        is_instance_segmentation : bool, optional
-            Indication of whether the task is instance segmentation. Default
-            is True.
+        affinity_mode : bool, optional
+            If True, the model predicts affinities; if False, it predicts
+            foreground–background. Default is True.
+        normalization_percentiles, Tuple[int]
+            Lower and upper percentiles used for normalization. Default is
+            (1, 99.5).
         patch_shape : Tuple[int], optional
             Shape of the 3D patch to extract from the images. Default is
             (128, 128, 128).
@@ -190,7 +194,7 @@ class TrainDataset(BaseDataset):
         super().__init__(
             input_img_paths,
             label_mask_paths,
-            is_instance_segmentation=is_instance_segmentation,
+            affinity_mode=affinity_mode,
             patch_shape=patch_shape
         )
 
@@ -234,7 +238,7 @@ class TrainDataset(BaseDataset):
             input_patch, label_patch = self.transform(input_patch, label_patch)
 
         # Check whether to compute affinity channels
-        if self.is_instance_segmentation:
+        if self.affinity_mode:
             return input_patch, img_util.get_affinity_channels(label_patch[0])
         else:
             return input_patch, label_patch
@@ -308,7 +312,8 @@ class ValidateDataset(BaseDataset):
         self,
         input_img_paths,
         label_mask_paths,
-        is_instance_segmentation=True,
+        affinity_mode=True,
+        normalization_percentiles=(1, 99.5),
         patch_shape=(128, 128, 128),
     ):
         """
@@ -320,9 +325,12 @@ class ValidateDataset(BaseDataset):
             Paths to input volumetric images.
         label_mask_paths : List[str]
             Paths to corresponding label masks.
-        is_instance_segmentation : bool, optional
-            Indication of whether the task is instance segmentation. Default is
-            True.
+        affinity_mode : bool, optional
+            If True, the model predicts affinities; if False, it predicts
+            foreground–background. Default is True.
+        normalization_percentiles, Tuple[int]
+            Lower and upper percentiles used for normalization. Default is
+            (1, 99.5).
         patch_shape : Tuple[int], optional
             Shape of the 3D patch to extract from the images. Default is
             (128, 128, 128).
@@ -331,7 +339,7 @@ class ValidateDataset(BaseDataset):
         super().__init__(
             input_img_paths,
             label_mask_paths,
-            is_instance_segmentation=is_instance_segmentation,
+            affinity_mode=affinity_mode,
             patch_shape=patch_shape
         )
 
@@ -354,7 +362,7 @@ class ValidateDataset(BaseDataset):
             foreground.extend(foreground_i)
             background.extend(background_i)
 
-        # Extract examples
+        # Extract examples used for validation
         n_background_examples = int(len(foreground) * 0.1)
         background = random.sample(background, n_background_examples)
         foreground.extend(background)
@@ -371,8 +379,12 @@ class ValidateDataset(BaseDataset):
 
         Returns
         -------
-        List[tuple]
-            List of (image_index, patch_center) tuples.
+        foreground : List[numpy.ndarray]
+            List of image patches that contain a sufficiently large foreground
+            object.
+        background : List[numpy.ndarray]
+            List of image patches that do not contain a sufficiently large
+            foreground object.
         """
         foreground, background = list(), list()
         label_mask = self.label_masks[i]
@@ -396,8 +408,11 @@ class ValidateDataset(BaseDataset):
 
         Returns
         -------
-        Tuple[numpy.ndarray]
-            A tuple (input_patch, label_patch) where both are NumPy arrays.
+        input_patch : numpy.ndarray
+            Input image patch.
+        affs_patch / label_patch : numpy.ndarray
+            Affinity maps of label patch if "affinity_mode" is True;
+            otherwise, binary mask of foreground-background.
         """
         # Fetch examples
         i, center = self.example_ids[idx]
@@ -405,8 +420,9 @@ class ValidateDataset(BaseDataset):
         label_patch = self.get_label_patch(i, center)
 
         # Check whether to compute affinity channels
-        if self.is_instance_segmentation:
-            return input_patch, img_util.get_affinity_channels(label_patch[0])
+        if self.affinity_mode:
+            affs_patch = img_util.get_affinity_channels(label_patch[0])
+            return input_patch, affs_patch
         else:
             return input_patch, label_patch
 

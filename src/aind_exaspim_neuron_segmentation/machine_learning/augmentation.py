@@ -8,7 +8,7 @@ Routines for applying image augmentation during training.
 
 """
 
-from scipy.ndimage import gaussian_filter, rotate, zoom
+from scipy.ndimage import rotate, zoom
 
 import numpy as np
 import random
@@ -18,33 +18,20 @@ import torchvision.transforms as transforms
 # --- Image Transforms ---
 class ImageTransforms:
     """
-    Class that applies a sequence of transforms to a 3D image and
-    segmentation patch.
-
+    Class that applies a sequence of transforms to a 3D input image and label
+    mask.
     """
+
     def __init__(self):
         """
-        Initializes a GeometricTransforms instance that applies geomtery-based
-        augmentation to an image and segmentation patch.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-
+        Initializes a GeometricTransforms instance.
         """
         # Instance attributes
         self.geometric_transforms = [
             RandomFlip3D(),
             RandomRotation3D(),
         ]
-        self.intensity_transforms1 = transforms.Compose(
-                [RandomContrast3D(), GaussianSmoothing3D()]
-            )
-        self.intensity_transforms2 = transforms.Compose(
+        self.intensity_transforms = transforms.Compose(
                 [RandomContrast3D(), RandomNoise3D()]
             )
 
@@ -56,33 +43,28 @@ class ImageTransforms:
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with the shape (H, W, D).
+            Input image with shape (H, W, D).
         label_mask : numpy.ndarray
-            Segmentation mask with the shape (H, W, D).
+            Label mask with shape (H, W, D).
 
         Returns
         -------
         numpy.ndarray
-            Transformed 3D image and segmentation patch.
-
+            Transformed input image and label mask.
         """
         # Geometric transforms
         for transform in self.geometric_transforms:
             input_img, label_mask = transform(input_img, label_mask)
 
         # Intensity transforms
-        if np.random.random() > 0.5:
-            input_img = self.intensity_transforms1(input_img)
-        else:
-            input_img = self.intensity_transforms2(input_img)
-        return input_img.copy(), label_mask.copy()
+        input_img = self.intensity_transforms(input_img)
+        return input_img, label_mask
 
 
 # --- Geometric Transforms ---
 class RandomFlip3D:
     """
     Randomly flips a 3D image along one or more axes.
-
     """
 
     def __init__(self, axes=(0, 1, 2)):
@@ -92,32 +74,25 @@ class RandomFlip3D:
         Parameters
         ----------
         axes : Tuple[float], optional
-            Tuple of integers representing the axes along which to flip the
-            image. The default is (0, 1, 2).
-
-        Returns
-        -------
-        None
-
+            Axes along which to flip the image. Default is (0, 1, 2).
         """
         self.axes = axes
 
     def __call__(self, input_img, label_mask):
         """
-        Applies random flipping to the input image and segmentation patch.
+        Applies random flipping to the input image and label mask.
 
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with the shape (H, W, D).
+            Input image with shape (H, W, D).
         label_mask : numpy.ndarray
-            Segmentation mask with the shape (H, W, D).
+            Label mask with shape (H, W, D).
 
         Returns
         -------
         numpy.ndarray
-            Flipped 3D image and segmentation patch.
-
+            Flipped input image and label mask.
         """
         for axis in self.axes:
             if random.random() > 0.5:
@@ -129,7 +104,6 @@ class RandomFlip3D:
 class RandomRotation3D:
     """
     Applies random rotation along a randomly chosen axis.
-
     """
 
     def __init__(self, angles=(-45, 45), axes=((0, 1), (0, 2), (1, 2))):
@@ -139,34 +113,28 @@ class RandomRotation3D:
         Parameters
         ----------
         angles : Tuple[int], optional
-            Maximum angle of rotation. The default is (-45, 45).
+            Maximum angle of rotation. Default is (-45, 45).
         axis : Tuple[Tuple[int]], optional
-            Axes to apply rotation.
-
-        Returns
-        -------
-        None
-
+            Axes to apply rotation. Default is ((0, 1), (0, 2), (1, 2)).
         """
         self.angles = angles
         self.axes = axes
 
     def __call__(self, input_img, label_mask):
         """
-        Rotates the input image and segmentation patch.
+        Rotates the input image and label mask.
 
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with the shape (H, W, D).
+            Input image with shape (H, W, D).
         label_mask : numpy.ndarray
-            Segmentation mask with the shape (H, W, D).
+            Label mask with shape (H, W, D).
 
         Returns
         -------
         numpy.ndarray
-            Rotated 3D image and segmentation patch.
-
+            Rotated input image and label mask.
         """
         for axes in self.axes:
             if random.random() > 0.4:
@@ -179,7 +147,6 @@ class RandomRotation3D:
 class RandomScale3D:
     """
     Applies random scaling along each axis.
-
     """
 
     def __init__(self, scale_range=(0.9, 1.1)):
@@ -189,31 +156,25 @@ class RandomScale3D:
         Parameters
         ----------
         scale_range : Tuple[float], optional
-            Range of scaling factors. The default is (0.9, 1.1).
-
-        Returns
-        -------
-        None
-
+            Range of scaling factors. Default is (0.9, 1.1).
         """
         self.scale_range = scale_range
 
     def __call__(self, input_img, label_mask):
         """
-        Applies random rescaling to the input 3D image.
+        Applies random rescaling to the input image and label mask.
 
         Parameters
         ----------
         input_img : numpy.ndarray
-            Input image with the shape (H, W, D).
+            Input image with shape (H, W, D).
         label_mask : numpy.ndarray
-            Segmentation mask with the shape (H, W, D).
+            Label mask with shape (H, W, D).
 
         Returns
         -------
         numpy.ndarray
-            Rescaled 3D image and segmentation patch.
-
+            Rescaled input image and label mask.
         """
         # Sample new image shape
         alpha = np.random.uniform(self.scale_range[0], self.scale_range[1])
@@ -239,7 +200,6 @@ class RandomScale3D:
 class RandomContrast3D:
     """
     Adjusts the contrast of a 3D image by scaling voxel intensities.
-
     """
 
     def __init__(self, factor_range=(0.9, 1.1)):
@@ -249,30 +209,24 @@ class RandomContrast3D:
         Parameters
         ----------
         factor_range : Tuple[float], optional
-            Tuple of integers representing the range of contrast factors. The
-            default is (0.8, 1.1).
-
-        Returns
-        -------
-        None
-
+            Tuple of integers representing the range of contrast factors.
+            Default is (0.9, 1.1).
         """
         self.factor_range = factor_range
 
     def __call__(self, img):
         """
-        Applies contrast to the input 3D image.
+        Applies contrast to an image.
 
         Parameters
         ----------
         img : numpy.ndarray
-            image with the shape (H, W, D).
+            image with shape (H, W, D).
 
         Returns
         -------
         numpy.ndarray
-            Contrasted 3D image.
-
+            Contrasted image.
         """
         factor = random.uniform(*self.factor_range)
         return np.clip(img * factor, 0, 1)
@@ -281,91 +235,47 @@ class RandomContrast3D:
 class RandomNoise3D:
     """
     Adds random Gaussian noise to a 3D image.
-
     """
 
-    def __init__(self, max_std=0.1):
+    def __init__(self, max_std=0.05):
         """
         Initializes a RandomNoise3D transformer.
 
         Parameters
         ----------
-        mean : float, optional
-            Mean of the Gaussian noise distribution. The default is 0.0.
-        std : float, optional
-            Standard deviation of the Gaussian noise distribution. The default
-            is 0.025.
-
-        Returns
-        -------
-        None
-
+        max_std : float, optional
+            Maximum standard deviation of the Gaussian noise distribution.
+            Default is 0.05.
         """
         self.max_std = max_std
 
     def __call__(self, img):
         """
-        Adds Gaussian noise to the input 3D image.
+        Adds Gaussian noise to an image.
 
         Parameters
         ----------
-        img : np.ndarray
+        img : numpy.ndarray
             Image to which noise will be added.
 
         Returns
         -------
         numpy.ndarray
-            Noisy 3D image.
-
+            Noisy image.
         """
         std = self.max_std * random.random()
         noise = np.random.normal(0, std, img.shape)
         return img + noise
 
 
-class GaussianSmoothing3D:
-    """
-    Applies Gaussian smoothing (blurring) to a 3D image.
-    """
-
-    def __init__(self, max_sigma=3):
-        """
-        Initializes the GaussianSmoothing3D transformer.
-
-        Parameters
-        ----------
-        max_sigma : float
-            Maximum standard deviation for the Gaussian kernel. A random sigma
-            in the range [0, max_sigma] will be selected for each call.
-        """
-        self.max_sigma = max_sigma
-
-    def __call__(self, img):
-        """
-        Applies Gaussian smoothing to the input 3D image.
-
-        Parameters
-        ----------
-        img : np.ndarray
-            3D image to smooth.
-
-        Returns
-        -------
-        np.ndarray
-            Smoothed 3D image.
-        """
-        sigma = self.max_sigma * random.random()
-        return gaussian_filter(img, sigma=sigma)
-
-
 # --- Helpers ---
-def rotate3d(img_patch, angle, axes):
+def rotate3d(img, angle, axes):
     """
     Rotates a 3D image patch around the specified axes by a given angle.
 
     Parameters
     ----------
-    img_patch : numpy.ndarray
+    img : numpy.ndarray
         Image to be rotated.
     angle : float
         Angle (in degrees) by which to rotate the image patch around the
@@ -376,15 +286,14 @@ def rotate3d(img_patch, angle, axes):
     Returns
     -------
     numpy.ndarray
-        Rotated 3D image patch.
-
+        Rotated image.
     """
-    img_patch = rotate(
-        img_patch,
+    img = rotate(
+        img,
         angle,
         axes=axes,
         mode="grid-mirror",
         reshape=False,
         order=0,
     )
-    return img_patch
+    return img

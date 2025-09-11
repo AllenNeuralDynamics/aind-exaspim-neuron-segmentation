@@ -16,7 +16,7 @@ import torch.nn.functional as F
 class UNet(nn.Module):
     """
     3D U-Net architecture for 3D image data, suitable for tasks such as
-    denoising or segmentation.
+    segmentation.
 
     Attributes
     ----------
@@ -85,9 +85,9 @@ class UNet(nn.Module):
 
         Returns
         -------
-        torch.Tensor
+        logits : torch.Tensor
             Output tensor with shape (B, 1, D, H, W), representing the
-            denoised image.
+            prediction.
         """
         # Contracting layers
         x1 = self.inc(x)
