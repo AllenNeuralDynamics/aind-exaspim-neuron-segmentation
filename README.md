@@ -91,10 +91,10 @@ patch_shape = (96, 96, 96)
 output_path = "directory-path-to-save-ckpts"
 
 # Paths
-train_img_paths = "paths-to-train-images"
-train_label_paths = "paths-to-train-label-masks"
-val_img_paths = "paths-to-validation-images"
-val_label_paths = "paths-to-validation-label-masks"
+train_img_paths = "list-of-train-input-image-paths"
+train_label_paths = "list-of-train-label-mask-paths"
+val_img_paths = "list-of-validation-input-image-paths"
+val_label_paths = "list-of-validation-label-mask-paths"
 
 # Datasets
 train_dataset = TrainDataset(
