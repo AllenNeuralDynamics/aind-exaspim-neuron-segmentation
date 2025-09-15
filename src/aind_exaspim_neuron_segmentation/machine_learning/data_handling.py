@@ -14,6 +14,7 @@ from tqdm import tqdm
 import numpy as np
 import random
 
+from aind_exaspim_neuron_segmentation import inference
 from aind_exaspim_neuron_segmentation.machine_learning.augmentation import ImageTransforms
 from aind_exaspim_neuron_segmentation.utils import img_util
 
@@ -95,7 +96,8 @@ class BaseDataset(Dataset):
         self.normalization_factors = list()
         desc = "Compute Normalization Factors"
         for img in tqdm(self.input_imgs, desc=desc):
-            mn, mx = np.percentile(img[:], self.normalization_percentiles)
+            img = np.minimum(img[:], self.brightness_clip)
+            mn, mx = np.percentile(img, self.normalization_percentiles)
             self.normalization_factors.append((mn, mx))
 
     # --- Read Image Patches ---
@@ -140,7 +142,7 @@ class BaseDataset(Dataset):
 
         # Normalize image patch
         mn, mx = self.normalization_factors[i]
-        patch = (patch - mn) / (mx - mn + 1e-8)
+        patch = np.clip((patch - mn) / (mx - mn + 1e-8), 0, 1)
         return patch
 
     def get_label_patch(self, i, center):
@@ -294,9 +296,9 @@ class TrainDataset(BaseDataset):
 
             # Check if patch is foreground or background
             foreground_cnt = (label_patch > 0).sum()
-            if foreground_cnt > 4000 and is_foreground:
+            if foreground_cnt > 10**3 and is_foreground:
                 break
-            elif foreground_cnt == 0 and not is_foreground:
+            elif foreground_cnt < 10**3 and not is_foreground:
                 break
 
         # Get input patch
@@ -387,10 +389,11 @@ class ValidateDataset(BaseDataset):
             background.extend(background_i)
 
         # Extract examples used for validation
-        n_background_examples = int(len(foreground) * 0.1)
+        val_examples = foreground
+        n_background_examples = int(len(foreground) * 0.25)
         background = random.sample(background, n_background_examples)
-        foreground.extend(background)
-        return foreground
+        val_examples.extend(background)
+        return val_examples
 
     def generate_examples_from_img(self, i):
         """
@@ -410,15 +413,22 @@ class ValidateDataset(BaseDataset):
             List of image patches that do not contain a sufficiently large
             foreground object.
         """
-        foreground, background = list(), list()
+        # Generate patch starts
         label_mask = self.label_masks[i]
-        for v in img_util.calculate_offsets(label_mask, self.patch_shape):
+        patch_starts = inference.generate_patch_starts(
+            label_mask.shape, self.patch_shape, (0, 0, 0)
+        )
+
+        # Generate examples
+        foreground, background = list(), list()
+        for v in patch_starts:
             center = [v_i + s_i // 2 for v_i, s_i in zip(v, self.patch_shape)]
-            patch = self.get_patch(label_mask, center)
-            if (patch > 0).sum() > 5000:
-                foreground.append((i, center))
-            else:
-                background.append((i, center))
+            if img_util.is_contained(center, label_mask.shape, buffer=64):
+                patch = self.get_patch(label_mask, center)
+                if (patch > 0).sum() > 10**3:
+                    foreground.append((i, center))
+                else:
+                    background.append((i, center))
         return foreground, background
 
     def __getitem__(self, idx):
@@ -457,6 +467,6 @@ class ValidateDataset(BaseDataset):
         Returns
         -------
         int
-            Number of precomputed validation patches.
+            Number of validation patches.
         """
         return len(self.example_ids)

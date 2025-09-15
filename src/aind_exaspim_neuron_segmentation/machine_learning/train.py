@@ -8,8 +8,10 @@ Code used to train neural network to perform image segmentation.
 
 """
 
+from contextlib import nullcontext
 from datetime import datetime
 from sklearn.metrics import precision_score, recall_score
+from torch import autocast
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -33,10 +35,11 @@ class Trainer:
     def __init__(
         self,
         output_dir,
+        affinity_mode=True,
         batch_size=16,
-        is_instance_segmentation=True,
         lr=1e-3,
         max_epochs=1000,
+        use_amp=True,
     ):
         """
         Instantiates a Trainer object.
@@ -45,16 +48,18 @@ class Trainer:
         ----------
         output_dir : str
             Directory where logs, model checkpoints, and TensorBoard is saved.
+        affinity_mode : bool, optional
+            Indication of whether the task is instance segmentation. In this
+            case, the model learns affinity channels. Default is True.
         batch_size : int, optional
             Number of samples per batch for both training and validation.
             Default is 16.
-        is_instance_segmentation : bool, optional
-            Indication of whether the task is instance segmentation. In this
-            case, the model learns affinity channels. Default is True.
         lr : float, optional
             Initial learning rate for the optimizer. Default is 1e-3.
         max_epochs : int, optional
             Maximum number of training epochs. Default is 1000.
+        use_amp : bool, optional
+            Indication of whether to use mixed precision. Default is True.
         """
         # Initializations
         exp_name = "session-" + datetime.today().strftime("%Y%m%d_%H%M")
@@ -67,12 +72,19 @@ class Trainer:
         self.max_epochs = max_epochs
         self.log_dir = log_dir
 
-        output_channels = 3 if is_instance_segmentation else 1
+        output_channels = 3 if affinity_mode else 1
         self.criterion = nn.BCEWithLogitsLoss()
         self.model = UNet3D(output_channels=output_channels).to("cuda")
         self.optimizer = optim.AdamW(self.model.parameters(), lr=lr)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=25)
         self.writer = SummaryWriter(log_dir=log_dir)
+
+        if use_amp:
+            self.autocast = autocast(device_type="cuda", dtype=torch.float16)
+        else:
+            self.autocast = nullcontext()
+
 
     # --- Core Routines ---
     def run(self, train_dataset, val_dataset):
@@ -203,10 +215,11 @@ class Trainer:
         loss : torch.Tensor
             Computed loss value.
         """
-        x = x.to("cuda", dtype=torch.float)
-        y = y.to("cuda", dtype=torch.float)
-        hat_y = self.model(x)
-        loss = self.criterion(hat_y, y)
+        with self.autocast:
+            x = x.to("cuda", dtype=torch.float)
+            y = y.to("cuda", dtype=torch.float)
+            hat_y = self.model(x)
+            loss = self.criterion(hat_y, y)
         return hat_y, loss
 
     # --- Helpers
