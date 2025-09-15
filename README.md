@@ -87,6 +87,7 @@ from aind_exaspim_neuron_segmentation.machine_learning.train import Trainer
 
 
 # Initializations
+affinity_mode = True
 patch_shape = (96, 96, 96)
 output_path = "directory-path-to-save-ckpts"
 
