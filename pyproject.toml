@@ -25,6 +25,7 @@ dependencies = [
     's3fs==2024.12.0',
     'scikit-image',
     'scikit-learn',
+    'tensorboard',
     'tifffile',
     'torch',
     'torchvision',
