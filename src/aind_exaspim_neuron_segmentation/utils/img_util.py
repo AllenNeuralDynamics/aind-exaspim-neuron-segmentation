@@ -432,6 +432,32 @@ def get_slices(center, shape):
     return tuple(slice(s, s + d) for s, d in zip(start, shape))
 
 
+def is_contained(voxel, shape, buffer=0):
+    """
+    Check whether a voxel is within bounds of a given shape, considering a
+    buffer.
+
+    Parameters
+    ----------
+    voxel : Tuple[int]
+        Voxel coordinates to be checked.
+    shape : tuple of int
+        Shape of image volume.
+    buffer : int, optional
+        Number of voxels to pad the bounds by when checking containment.
+        Default 0.
+
+    Returns
+    -------
+    bool
+        True if the voxel is within bounds (with buffer) on all axes, False
+        otherwise.
+    """
+    contained_above = all(0 <= v + buffer < s for v, s in zip(voxel, shape))
+    contained_below = all(0 <= v - buffer < s for v, s in zip(voxel, shape))
+    return contained_above and contained_below
+
+
 def list_block_paths(prefix):
     """
     Lists the GCS paths to image blocks associated with a given brain ID.
