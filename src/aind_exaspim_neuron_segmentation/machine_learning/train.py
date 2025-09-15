@@ -143,9 +143,9 @@ class Trainer:
             hat_y, loss = self.forward_pass(x, y)
 
             # Backward pass
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            self.scaler.scale(loss_i).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
             # Store stats for tensorboard
             stats["loss"].append(float(toCPU(loss)))
