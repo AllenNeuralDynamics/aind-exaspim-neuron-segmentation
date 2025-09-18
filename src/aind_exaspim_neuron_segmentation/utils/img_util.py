@@ -106,7 +106,7 @@ def _read_tiff(img_path, storage_options=None):
     img_path : str
         Path to the TIFF file.
     storage_options : dict, optional
-        Additional kwargs for GCSFileSystem.
+        Additional kwargs for GCSFileSystem. Default is None.
 
     Returns
     -------
@@ -288,6 +288,10 @@ def plot_mips(img, output_path=None, vmax=None):
     ----------
     img : numpy.ndarray
         Input image to generate MIPs from.
+    output_path : None or str, optional
+        Path to save MIPs as a PNG if provided. Default None.
+    vmax : None or int, optional
+        Brightness value used as upper limit of the colormap. Default is None.
     """
     vmax = vmax or np.percentile(img, 99.9)
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
