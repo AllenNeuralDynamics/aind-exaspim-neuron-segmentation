@@ -91,7 +91,7 @@ def list_gcs_paths(bucket_name, prefix):
 
     Returns
     -------
-    List[str]
+    paths : List[str]
         Path to files in that prefix.
     """
     paths = list()
