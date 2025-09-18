@@ -227,7 +227,7 @@ def affinities_to_segmentation(
         affinities,
         agglomeration_thresholds,
         aff_threshold_low=0.1,
-        aff_threshold_high=0.99,
+        aff_threshold_high=0.9999,
     )
 
     # Postprocess segmentation
@@ -326,7 +326,7 @@ def voxelize_skeletons(skeleton_dict, img_shape):
 
     Returns
     -------
-    numpy.ndarray
+    img : numpy.ndarray
         3D integer array of shape "img_shape" where voxels occupied by
         skeletons are labeled with their segment ID.
     """
@@ -345,7 +345,7 @@ def count_patches(img_shape, patch_shape, overlap):
 
     Parameters
     ----------
-    img : numpy.ndarray
+    img : ArrayLike
         Input image tensor with shape (batch, channels, depth, height, width).
     patch_shape : Tuple[int], optional
         Shape of the 3D patch expected by the model.
@@ -435,7 +435,7 @@ def to_tensor(arr, device="cuda"):
     arr : numpy.ndarray
         Array to be converted.
     device : str, optional
-        Device to move array to.
+        Device to move array to. Default is "cuda".
 
     Returns
     -------
