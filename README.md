@@ -16,8 +16,8 @@ The segmentation pipeline consists of three main steps:
 
 <blockquote>
   <p>1. <strong>Affinity Prediction</strong>: 3D UNet predicts affinities between neighboring voxels.</p>
-  <p>2. <strong>Watershed Algorithm</strong>: Seeded watershed transforms affinities into an initial supervoxel oversegmentation.</p>
-  <p>3. <strong>Supervoxel Agglomeration</strong>: Supervoxels are iteratively merged using a graph-based algorithm.</p>
+  <p>2. <strong>Generate Supervoxels</strong>: Seeded watershed transforms affinities into an initial supervoxel oversegmentation.</p>
+  <p>3. <strong>Agglomerate Supervoxels</strong>: Supervoxels are iteratively merged using a graph-based algorithm.</p>
 </blockquote>
 
 In addition, this repository provides tools for skeletonization and saving the result as a ZIP archive of SWC files.
