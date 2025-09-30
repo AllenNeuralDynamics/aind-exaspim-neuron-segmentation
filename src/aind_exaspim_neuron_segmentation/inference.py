@@ -257,7 +257,7 @@ def segmentation_to_zipped_swcs(segmentation, zip_path):
 
 def skeletonize(segmentation):
     """
-    Computes skeleton of the given segmentation by using the Teasar algorithm
+    Computes skeleton of the given segmentation by using the TESEAR algorithm
     implementation in Kimimaro by the SeungLab.
 
     Parameters
