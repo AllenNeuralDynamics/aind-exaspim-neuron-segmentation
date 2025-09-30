@@ -31,7 +31,7 @@ def predict(
     img,
     model,
     affinity_mode=True,
-    batch_size=32,
+    batch_size=16,
     brightness_clip=1000,
     normalization_percentiles=(5, 99.9),
     patch_shape=(96, 96, 96),
