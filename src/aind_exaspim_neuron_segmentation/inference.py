@@ -119,8 +119,8 @@ def predict(
         pbar.update(len(starts)) if verbose else None
 
     # Postprocess prediction
-    pred = accum_pred[:, ...] / (accum_wgt + 1e-8)
-    return pred if affinity_mode else pred[0]
+    accum_pred = accum_pred[:, ...] / (accum_wgt + 1e-8)
+    return accum_pred if affinity_mode else accum_pred[0]
 
 
 def _predict_batch(img, model, starts, patch_shape, trim=8):
