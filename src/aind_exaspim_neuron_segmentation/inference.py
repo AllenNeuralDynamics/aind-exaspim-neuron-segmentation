@@ -89,8 +89,8 @@ def predict(
 
     # Run model to generate prediction
     n_channels = 3 if affinity_mode else 1
-    accum_pred = np.zeros((n_channels,) + img.shape[2:])
-    accum_wgt = np.zeros(img.shape[2:])
+    accum_pred = np.zeros((n_channels,) + img.shape[2:], dtype=np.float32)
+    accum_wgt = np.zeros(img.shape[2:], dtype=np.int8)
     for _ in range(0, n_patches, batch_size):
         # Extract batch and run model
         starts = list(itertools.islice(starts_generator, batch_size))
