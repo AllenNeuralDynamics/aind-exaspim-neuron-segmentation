@@ -90,7 +90,7 @@ def predict(
     # Run model to generate prediction
     n_channels = 3 if affinity_mode else 1
     accum_pred = np.zeros((n_channels,) + img.shape[2:], dtype=np.float32)
-    accum_wgt = np.zeros(img.shape[2:], dtype=np.int8)
+    accum_wgt = np.zeros(img.shape[2:], dtype=np.float16)
     for _ in range(0, n_patches, batch_size):
         # Extract batch and run model
         starts = list(itertools.islice(starts_generator, batch_size))
@@ -119,7 +119,12 @@ def predict(
         pbar.update(len(starts)) if verbose else None
 
     # Postprocess prediction
-    accum_pred = accum_pred[:, ...] / (accum_wgt + 1e-8)
+    np.divide(
+        accum_pred,
+        accum_wgt,
+        out=accum_pred,
+        where=accum_wgt != 0,
+    )
     return accum_pred if affinity_mode else accum_pred[0]
 
 
