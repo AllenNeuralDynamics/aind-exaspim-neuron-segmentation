@@ -138,7 +138,7 @@ class RandomRotation3D:
         -------
         input_img : numpy.ndarray
             Rotated input image.
-        label_mask : numpy.ndarray 
+        label_mask : numpy.ndarray
             Rotated label mask.
         """
         for axes in self.axes:
@@ -180,7 +180,7 @@ class RandomScale3D:
         -------
         input_img : numpy.ndarray
             Rescaled input image.
-        label_mask : numpy.ndarray 
+        label_mask : numpy.ndarray
             Rescaled label mask.
         """
         # Sample new image shape
@@ -209,14 +209,14 @@ class RandomContrast3D:
     Adjusts the contrast of a 3D image by scaling voxel intensities.
     """
 
-    def __init__(self, factor_range=(0.9, 1.1)):
+    def __init__(self, factor_range=(0.8, 1.2)):
         """
         Initializes a RandomContrast3D transformer.
 
         Parameters
         ----------
         factor_range : Tuple[float], optional
-            Range of contrast factors. Default is (0.9, 1.1).
+            Range of contrast factors. Default is (0.8, 1.2).
         """
         self.factor_range = factor_range
 

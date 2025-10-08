@@ -85,7 +85,6 @@ class Trainer:
         else:
             self.autocast = nullcontext()
 
-
     # --- Core Routines ---
     def run(self, train_dataset, val_dataset):
         """
@@ -100,13 +99,14 @@ class Trainer:
             Dataset used for validation.
         """
         # Initializations
-        print("\nExperiment:", os.path.basename(os.path.normpath(self.log_dir)))
+        exp_name = os.path.basename(os.path.normpath(self.log_dir))
         train_dataloader = DataLoader(
             train_dataset, batch_size=self.batch_size
         )
         val_dataloader = DataLoader(val_dataset, batch_size=self.batch_size)
 
         # Main
+        print("\nExperiment:", exp_name)
         for epoch in range(self.max_epochs):
             # Train-Validate
             train_stats = self.train_step(train_dataloader, epoch)
@@ -143,7 +143,7 @@ class Trainer:
             hat_y, loss = self.forward_pass(x, y)
 
             # Backward pass
-            self.scaler.scale(loss_i).backward()
+            self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
 
@@ -191,8 +191,8 @@ class Trainer:
 
         # Check for new best
         if stats["f1"] > self.best_f1:
-            self.save_model(epoch)
             self.best_f1 = stats["f1"]
+            self.save_model(epoch)
             return stats, True
         else:
             return stats, False
@@ -247,8 +247,11 @@ class Trainer:
             pred = (hat_y[i, 0, ...] > 0).astype(np.uint8).flatten()
 
             # Compute metrics
-            stats["precision"].append(precision_score(gt, pred, zero_division=np.nan))
-            stats["recall"].append(recall_score(gt, pred, zero_division=np.nan))
+            precision_i = precision_score(gt, pred, zero_division=np.nan)
+            recall_i = recall_score(gt, pred, zero_division=np.nan)
+
+            stats["precision"].append(precision_i)
+            stats["recall"].append(recall_i)
         return stats
 
     def report_stats(self, stats, is_train=True):

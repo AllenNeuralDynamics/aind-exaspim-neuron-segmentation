@@ -29,7 +29,7 @@ class BaseDataset(Dataset):
         label_mask_paths,
         affinity_mode=True,
         brightness_clip=1000,
-        normalization_percentiles=(1, 99.5),
+        normalization_percentiles=(1, 99.9),
         patch_shape=(96, 96, 96),
     ):
         """
@@ -67,7 +67,6 @@ class BaseDataset(Dataset):
         # Load images
         self.input_imgs = self._load_imgs(input_img_paths)
         self.label_masks = self._load_imgs(label_mask_paths)
-        self._init_normalization_factors()
 
     def _load_imgs(self, img_paths):
         """
@@ -88,17 +87,6 @@ class BaseDataset(Dataset):
             img = img_util.read(img_path)
             imgs.append(img)
         return imgs
-
-    def _init_normalization_factors(self):
-        """
-        Compute normalization factors for a list of input images.
-        """
-        self.normalization_factors = list()
-        desc = "Compute Normalization Factors"
-        for img in tqdm(self.input_imgs, desc=desc):
-            img = np.minimum(img[:], self.brightness_clip)
-            mn, mx = np.percentile(img, self.normalization_percentiles)
-            self.normalization_factors.append((mn, mx))
 
     # --- Read Image Patches ---
     def get_patch(self, img, center):
@@ -141,7 +129,7 @@ class BaseDataset(Dataset):
         patch = np.minimum(patch, self.brightness_clip)
 
         # Normalize image patch
-        mn, mx = self.normalization_factors[i]
+        mn, mx = np.percentile(patch, self.normalization_percentiles)
         patch = np.clip((patch - mn) / (mx - mn + 1e-8), 0, 1)
         return patch
 
@@ -177,7 +165,7 @@ class TrainDataset(BaseDataset):
         label_mask_paths,
         affinity_mode=True,
         brightness_clip=1000,
-        normalization_percentiles=(1, 99.5),
+        normalization_percentiles=(1, 99.9),
         patch_shape=(96, 96, 96),
         transform=None
     ):
@@ -423,7 +411,7 @@ class ValidateDataset(BaseDataset):
         foreground, background = list(), list()
         for v in patch_starts:
             center = [v_i + s_i // 2 for v_i, s_i in zip(v, self.patch_shape)]
-            if img_util.is_contained(center, label_mask.shape, buffer=64):
+            if img_util.is_contained(center, label_mask.shape[2:], buffer=64):
                 patch = self.get_patch(label_mask, center)
                 if (patch > 0).sum() > 10**3:
                     foreground.append((i, center))
