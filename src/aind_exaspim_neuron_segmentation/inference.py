@@ -33,7 +33,7 @@ def predict(
     affinity_mode=True,
     batch_size=16,
     brightness_clip=1000,
-    normalization_percentiles=(5, 99.9),
+    normalization_percentiles=(1, 99.9),
     patch_shape=(96, 96, 96),
     overlap=(32, 32, 32),
     trim=8,
@@ -59,7 +59,7 @@ def predict(
         Number of patches to process in a batch. Default is 32.
     normalization_percentiles : Tuple[int], optional
         Lower and upper percentiles used for normalization. Default is
-        (0.5, 99.5).
+        (1, 99.9).
     overlap : Tuple[int], optional
         Shape of overlap between patches along each dimension. Default is
         (16, 16, 16).
