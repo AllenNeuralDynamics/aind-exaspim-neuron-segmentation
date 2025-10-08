@@ -8,7 +8,7 @@ Routines for applying image augmentation during training.
 
 """
 
-from scipy.ndimage import rotate, zoom
+from scipy.ndimage import gaussian_filter, rotate, zoom
 
 import numpy as np
 import random
@@ -31,8 +31,11 @@ class ImageTransforms:
             RandomFlip3D(),
             RandomRotation3D(),
         ]
-        self.intensity_transforms = transforms.Compose(
-                [RandomContrast3D(), RandomNoise3D()]
+        self.intensity_transforms1 = transforms.Compose(
+                [RandomNoise3D(), RandomContrast3D()]
+            )
+        self.intensity_transforms2 = transforms.Compose(
+                [RandomSmooth3D(), RandomContrast3D()]
             )
 
     def __call__(self, input_img, label_mask):
@@ -58,7 +61,10 @@ class ImageTransforms:
             input_img, label_mask = transform(input_img, label_mask)
 
         # Intensity transforms
-        input_img = self.intensity_transforms(input_img)
+        if random.random() < 0.5:
+            input_img = self.intensity_transforms1(input_img)
+        else:
+            input_img = self.intensity_transforms2(input_img)
         return input_img, label_mask
 
 
@@ -142,7 +148,7 @@ class RandomRotation3D:
             Rotated label mask.
         """
         for axes in self.axes:
-            if random.random() > 0.4:
+            if random.random() > 0.2:
                 angle = random.uniform(*self.angles)
                 input_img = rotate3d(input_img, angle, axes)
                 label_mask = rotate3d(label_mask, angle, axes)
@@ -243,7 +249,7 @@ class RandomNoise3D:
     Adds random Gaussian noise to a 3D image.
     """
 
-    def __init__(self, max_std=0.05):
+    def __init__(self, max_std=0.15):
         """
         Initializes a RandomNoise3D transformer.
 
@@ -269,9 +275,44 @@ class RandomNoise3D:
         numpy.ndarray
             Noisy image.
         """
-        std = self.max_std * random.random()
+        std = self.max_std #* random.random()
         noise = np.random.normal(0, std, img.shape)
         return img + noise
+
+
+class RandomSmooth3D:
+    """
+    Applies Gaussian smoothing to a 3D image.
+    """
+
+    def __init__(self, max_sigma=1.0):
+        """
+        Initializes a GaussianSmooth3D transformer.
+
+        Parameters
+        ----------
+        max_sigma : float, optional
+            Maximum standard deviation of the Gaussian kernel.
+            Default is 1.0.
+        """
+        self.max_sigma = max_sigma
+
+    def __call__(self, img):
+        """
+        Applies Gaussian smoothing to an image.
+
+        Parameters
+        ----------
+        img : numpy.ndarray
+            3D image to smooth.
+
+        Returns
+        -------
+        numpy.ndarray
+            Smoothed image.
+        """
+        sigma = self.max_sigma #* random.random()
+        return gaussian_filter(img, sigma=sigma)
 
 
 # --- Helpers ---
