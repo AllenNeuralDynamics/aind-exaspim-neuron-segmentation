@@ -28,7 +28,7 @@ class BaseDataset(Dataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
-        brightness_clip=1000,
+        brightness_clip=500,
         normalization_percentiles=(1, 99.9),
         patch_shape=(96, 96, 96),
     ):
@@ -48,7 +48,7 @@ class BaseDataset(Dataset):
             Maximum brightness value for voxel intensities. Default is 1000.
         normalization_percentiles, Tuple[int]
             Lower and upper percentiles used for normalization. Default is
-            (1, 99.5).
+            (1, 99.9).
         patch_shape : Tuple[int], optional
             Shape of 3D patches to extract from the images. Default is
             (96, 96, 96).
@@ -124,13 +124,11 @@ class BaseDataset(Dataset):
         patch : numpy.ndarray
             Normalized input patch with shape (1, D, H, W).
         """
-        # Get image patch
         patch = self.get_patch(self.input_imgs[i], center)
         patch = np.minimum(patch, self.brightness_clip)
-
-        # Normalize image patch
-        mn, mx = np.percentile(patch, self.normalization_percentiles)
-        patch = np.clip((patch - mn) / (mx - mn + 1e-8), 0, 1)
+        patch = img_util.normalize(
+            patch, percentiles=self.normalization_percentiles
+        )
         return patch
 
     def get_label_patch(self, i, center):
