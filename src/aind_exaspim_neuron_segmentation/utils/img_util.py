@@ -275,7 +275,6 @@ def make_segmentation_colormap(mask, seed=42):
     rng = np.random.default_rng(seed)
     colors = [(0, 0, 0)]
     colors += list(rng.uniform(0.2, 1.0, size=(n_labels - 1, 3)))
-
     return ListedColormap(colors)
 
 
@@ -293,9 +292,12 @@ def plot_mips(img, output_path=None, vmax=None):
     vmax : None or int, optional
         Brightness value used as upper limit of the colormap. Default is None.
     """
+    # Initialize plot
     vmax = vmax or np.percentile(img, 99.9)
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
     axs_names = ["XY", "XZ", "YZ"]
+
+    # Plot MIPs
     for i in range(3):
         if len(img.shape) == 5:
             mip = np.max(img[0, 0, ...], axis=i)
@@ -306,42 +308,52 @@ def plot_mips(img, output_path=None, vmax=None):
         axs[i].set_title(axs_names[i], fontsize=16)
         axs[i].set_xticks([])
         axs[i].set_yticks([])
-
     plt.tight_layout()
+
+    # Save plot (if applicable)
     if output_path:
         plt.savefig(output_path, dpi=200)
+
     plt.show()
     plt.close(fig)
 
 
-def plot_segmentation_mips(mask):
+def plot_segmentation_mips(segmentation, output_path=None):
     """
-    Plots maximum intensity projections (MIPs) of a segmentation mask.
+    Plots maximum intensity projections (MIPs) of a segmentation.
 
     Parameters
     ----------
-    mask : numpy.ndarray
-        Segmentation mask. Can be either:
-        - 3D array (Z, Y, X), or
-        - 5D array (N, C, Z, Y, X), in which case the first sample
-          and first channel are used.
+    segmentation : numpy.ndarray
+        Segmentation whichh can be either:
+            - 3D array (Z, Y, X), or
+            - 5D array (N, C, Z, Y, X), in which case the first sample
+              and first channel are used.
+    output_path : None or str, optional
+        Path to save MIPs as a PNG if provided. Default None.
     """
+    # Initialize plot
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
     axs_names = ["XY", "XZ", "YZ"]
-    cmap = make_segmentation_colormap(mask)
+    cmap = make_segmentation_colormap(segmentation)
 
+    # Plot MIPs
     for i in range(3):
-        if len(mask.shape) == 5:
-            mip = np.max(mask[0, 0, ...], axis=i)
+        if len(segmentation.shape) == 5:
+            mip = np.max(segmentation[0, 0, ...], axis=i)
         else:
-            mip = np.max(mask, axis=i)
+            mip = np.max(segmentation, axis=i)
 
         axs[i].imshow(mip, cmap=cmap, interpolation="none")
         axs[i].set_title(axs_names[i], fontsize=16)
         axs[i].set_xticks([])
         axs[i].set_yticks([])
-
     plt.tight_layout()
+
+    # Save plot (if applicable)
+    if output_path:
+        plt.savefig(output_path, dpi=200)
+
     plt.show()
     plt.close(fig)
 
@@ -489,7 +501,7 @@ def list_block_paths(prefix):
     return img_paths, label_paths
 
 
-def normalize(img, apply_clip=True, percentiles=(1, 99.5)):
+def normalize(img, apply_clip=True, percentiles=(1, 99.9)):
     """
     Normalizes an image array based on percentile clipping and optionally
     clips the values to the range [0, 1].
@@ -503,7 +515,7 @@ def normalize(img, apply_clip=True, percentiles=(1, 99.5)):
         Default is True.
     percentiles : Tuple[int], optional
         Lower and upper percentiles used for normalization. Default is
-        (1, 99.5).
+        (1, 99.9).
 
     Returns
     -------
@@ -512,7 +524,7 @@ def normalize(img, apply_clip=True, percentiles=(1, 99.5)):
     """
     # Normalize image
     mn, mx = np.percentile(img, percentiles)
-    img = (img - mn) / max(mx - mn, 1)
+    img = (img - mn) / (mx - mn + 1e-8)
 
     # Apply clipping (optional)
     if apply_clip:
