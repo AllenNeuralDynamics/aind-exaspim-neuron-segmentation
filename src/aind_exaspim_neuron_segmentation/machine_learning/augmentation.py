@@ -275,7 +275,7 @@ class RandomNoise3D:
         numpy.ndarray
             Noisy image.
         """
-        std = self.max_std #* random.random()
+        std = self.max_std * random.random()
         noise = np.random.normal(0, std, img.shape)
         return img + noise
 
@@ -311,7 +311,7 @@ class RandomSmooth3D:
         numpy.ndarray
             Smoothed image.
         """
-        sigma = self.max_sigma #* random.random()
+        sigma = self.max_sigma * random.random()
         return gaussian_filter(img, sigma=sigma)
 
 
