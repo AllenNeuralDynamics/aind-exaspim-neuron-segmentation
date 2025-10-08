@@ -11,13 +11,11 @@ using agglomerative watershed, and optionally skeletonizes the result.
 
 """
 
-from io import StringIO
 from tqdm import tqdm
 
 import itertools
 import kimimaro
 import numpy as np
-import os
 import torch
 import waterz
 import zipfile
