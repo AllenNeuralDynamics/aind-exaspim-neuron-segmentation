@@ -148,7 +148,7 @@ class RandomRotation3D:
             Rotated label mask.
         """
         for axes in self.axes:
-            if random.random() > 0.2:
+            if random.random() <= 0.8:
                 angle = random.uniform(*self.angles)
                 input_img = rotate3d(input_img, angle, axes)
                 label_mask = rotate3d(label_mask, angle, axes)
@@ -249,7 +249,7 @@ class RandomNoise3D:
     Adds random Gaussian noise to a 3D image.
     """
 
-    def __init__(self, max_std=0.15):
+    def __init__(self, max_std=0.16):
         """
         Initializes a RandomNoise3D transformer.
 
@@ -257,7 +257,7 @@ class RandomNoise3D:
         ----------
         max_std : float, optional
             Maximum standard deviation of the Gaussian noise distribution.
-            Default is 0.05.
+            Default is 0.2.
         """
         self.max_std = max_std
 
@@ -275,7 +275,7 @@ class RandomNoise3D:
         numpy.ndarray
             Noisy image.
         """
-        std = self.max_std * random.random()
+        std = random.uniform(0, self.max_std)
         noise = np.random.normal(0, std, img.shape)
         return img + noise
 
@@ -285,7 +285,7 @@ class RandomSmooth3D:
     Applies Gaussian smoothing to a 3D image.
     """
 
-    def __init__(self, max_sigma=1.0):
+    def __init__(self, max_sigma=0.8):
         """
         Initializes a GaussianSmooth3D transformer.
 
@@ -293,7 +293,7 @@ class RandomSmooth3D:
         ----------
         max_sigma : float, optional
             Maximum standard deviation of the Gaussian kernel.
-            Default is 1.0.
+            Default is 1.
         """
         self.max_sigma = max_sigma
 
@@ -311,7 +311,7 @@ class RandomSmooth3D:
         numpy.ndarray
             Smoothed image.
         """
-        sigma = self.max_sigma * random.random()
+        sigma = random.uniform(0, self.max_sigma)
         return gaussian_filter(img, sigma=sigma)
 
 

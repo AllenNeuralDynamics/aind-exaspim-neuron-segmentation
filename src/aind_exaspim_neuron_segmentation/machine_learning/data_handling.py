@@ -28,7 +28,7 @@ class BaseDataset(Dataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
-        brightness_clip=500,
+        brightness_clip=300,
         normalization_percentiles=(1, 99.9),
         patch_shape=(96, 96, 96),
     ):
@@ -162,7 +162,7 @@ class TrainDataset(BaseDataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
-        brightness_clip=1000,
+        brightness_clip=300,
         normalization_percentiles=(1, 99.9),
         patch_shape=(96, 96, 96),
         transform=None
@@ -180,7 +180,7 @@ class TrainDataset(BaseDataset):
             If True, the model predicts affinities; if False, it predicts
             foreground–background. Default is True.
         brightness_clip : float, optional
-            Maximum brightness value for voxel intensities. Default is 1000.
+            Maximum brightness value for voxel intensities. Default is 300.
         normalization_percentiles, Tuple[int]
             Lower and upper percentiles used for normalization. Default is
             (1, 99.5).
@@ -321,7 +321,7 @@ class ValidateDataset(BaseDataset):
         input_img_paths,
         label_mask_paths,
         affinity_mode=True,
-        brightness_clip=1000,
+        brightness_clip=300,
         normalization_percentiles=(1, 99.5),
         patch_shape=(96, 96, 96),
     ):
@@ -338,7 +338,7 @@ class ValidateDataset(BaseDataset):
             If True, the model predicts affinities; if False, it predicts
             foreground–background. Default is True.
         brightness_clip : float, optional
-            Maximum brightness value for voxel intensities. Default is 1000.
+            Maximum brightness value for voxel intensities. Default is 300.
         normalization_percentiles, Tuple[int]
             Lower and upper percentiles used for normalization. Default is
             (1, 99.5).
