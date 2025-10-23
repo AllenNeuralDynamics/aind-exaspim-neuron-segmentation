@@ -376,7 +376,7 @@ def add_padding(patch, patch_shape):
         Zero-padded patch with the specified patch shape.
     """
     pad_width = [(0, ps - s) for ps, s in zip(patch_shape, patch.shape)]
-    return np.pad(patch, pad_width, mode="constant", constant_values=0)
+    return np.pad(patch, pad_width, mode='reflect')
 
 
 def get_patch(img, center, shape):
