@@ -11,6 +11,7 @@ using agglomerative watershed, and optionally skeletonizes the result.
 
 """
 
+from collections import deque
 from tqdm import tqdm
 
 import itertools
@@ -186,7 +187,7 @@ def _get_batch_inputs(img, starts, patch_shape, device):
         specified device.
     """
     # Extract input patches
-    inputs = np.zeros((len(starts), 1,) + patch_shape)
+    inputs = np.zeros((len(starts), 1,) + patch_shape, dtype=np.float32)
     for i, start in enumerate(starts):
         s = img_util.get_patch_slices(start, patch_shape, img.shape[2:])
         patch = img[(0, 0, *s)]
@@ -232,9 +233,10 @@ def affinities_to_segmentation(
         aff_threshold_low=0.1,
         aff_threshold_high=0.9999,
     )
+    del affinities
 
     # Postprocess segmentation
-    segmentation = list(segmentations)[-1]
+    segmentation = deque(segmentations, maxlen=1).pop()
     segmentation = img_util.remove_small_segments(
         segmentation, min_segment_size
     )
@@ -447,4 +449,4 @@ def to_tensor(arr, device="cuda"):
     """
     while (len(arr.shape)) < 5:
         arr = arr[:, np.newaxis, ...]
-    return torch.tensor(arr).to(device, dtype=torch.float)
+    return torch.tensor(arr).to(device, dtype=torch.float32)
