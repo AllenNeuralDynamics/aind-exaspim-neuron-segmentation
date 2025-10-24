@@ -202,7 +202,7 @@ def _get_batch_inputs(img, starts, patch_shape, device):
 def affinities_to_segmentation(
     affinities,
     agglomeration_thresholds=[0.6, 0.8, 0.9],
-    min_segment_size=1000
+    min_segment_size=100
 ):
     """
     Converts affinity maps into a segmentation using agglomerative watershed
@@ -217,7 +217,7 @@ def affinities_to_segmentation(
         List of merge thresholds passed to Waterz. Final segmentation is taken
         from the last threshold in the list. Default is [0.6, 0.8, 0.9].
     min_segment_size : int, optional
-        Minimum size (in voxels) of segments that are kept. Default is 1000.
+        Minimum size (in voxels) of segments that are kept. Default is 100.
 
     Returns
     -------
