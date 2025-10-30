@@ -12,8 +12,6 @@ using agglomerative watershed, and optionally skeletonizes the result.
 """
 
 from collections import deque
-import tracemalloc
-import gc
 from tqdm import tqdm
 
 import itertools
@@ -114,11 +112,7 @@ def predict(
             patch_slices_full = (slice(None),) + patch_slices
 
             # Add patch prediction to result
-            np.add(
-                accum_pred[pred_slices_full],
-                patch[patch_slices_full],
-                out=accum_pred[pred_slices_full]
-            )
+            accum_pred[pred_slices_full] += patch[patch_slices_full]
             accum_wgt[pred_slices] += 1
         pbar.update(len(starts)) if verbose else None
 
