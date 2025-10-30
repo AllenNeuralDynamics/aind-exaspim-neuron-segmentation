@@ -450,7 +450,7 @@ def get_slices(center, shape):
 
 def is_contained(voxel, shape, buffer=0):
     """
-    Check whether a voxel is within bounds of a given shape, considering a
+    Checks whether a voxel is within bounds of a given shape, considering a
     buffer.
 
     Parameters
