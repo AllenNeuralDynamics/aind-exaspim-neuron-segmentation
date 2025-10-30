@@ -12,6 +12,8 @@ using agglomerative watershed, and optionally skeletonizes the result.
 """
 
 from collections import deque
+import tracemalloc
+import gc
 from tqdm import tqdm
 
 import itertools
@@ -112,9 +114,12 @@ def predict(
             patch_slices_full = (slice(None),) + patch_slices
 
             # Add patch prediction to result
-            accum_pred[pred_slices_full] += patch[patch_slices_full]
+            np.add(
+                accum_pred[pred_slices_full],
+                patch[patch_slices_full],
+                out=accum_pred[pred_slices_full]
+            )
             accum_wgt[pred_slices] += 1
-
         pbar.update(len(starts)) if verbose else None
 
     # Postprocess prediction
@@ -186,16 +191,11 @@ def _get_batch_inputs(img, starts, patch_shape, device):
         Tensor of shape containing the padded image patches, located on the
         specified device.
     """
-    # Extract input patches
     inputs = np.zeros((len(starts), 1,) + patch_shape, dtype=np.float32)
     for i, start in enumerate(starts):
         s = img_util.get_patch_slices(start, patch_shape, img.shape[2:])
-        patch = img[(0, 0, *s)]
-        inputs[i, 0, ...] = img_util.add_padding(patch, patch_shape)
-
-    # Convert to tensor and move to device
-    inputs = to_tensor(inputs, device=device)
-    return inputs
+        inputs[i, 0, ...] = img_util.add_padding(img[(0, 0, *s)], patch_shape)
+    return to_tensor(inputs, device=device)
 
 
 # --- Segmentation and Skeletonization ---
