@@ -288,7 +288,7 @@ def plot_mips(img, output_path=None, vmax=None):
     img : numpy.ndarray
         Input image to generate MIPs from.
     output_path : None or str, optional
-        Path to save MIPs as a PNG if provided. Default None.
+        Path to save MIPs as a PNG if provided. Default is None.
     vmax : None or int, optional
         Brightness value used as upper limit of the colormap. Default is None.
     """
@@ -330,7 +330,7 @@ def plot_segmentation_mips(segmentation, output_path=None):
             - 5D array (N, C, Z, Y, X), in which case the first sample
               and first channel are used.
     output_path : None or str, optional
-        Path to save MIPs as a PNG if provided. Default None.
+        Path to save MIPs as a PNG if provided. Default is None.
     """
     # Initialize plot
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
