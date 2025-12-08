@@ -15,6 +15,7 @@ import gcsfs
 import matplotlib.pyplot as plt
 import numpy as np
 import s3fs
+import tensorstore as ts
 import tifffile
 import zarr
 
@@ -61,18 +62,13 @@ def _read_zarr(img_path):
 
     Returns
     -------
-    zarr.hierarchy.Group
-        A Zarr group opened in read-only mode.
+    numpy.ndarray
+        Loaded image volume.
     """
-    if _is_gcs_path(img_path):
-        fs = gcsfs.GCSFileSystem(anon=False)
-        store = zarr.storage.FSStore(img_path, fs=fs)
-    elif _is_s3_path(img_path):
-        fs = s3fs.S3FileSystem(config_kwargs={"max_pool_connections": 50})
-        store = s3fs.S3Map(root=img_path, s3=fs)
-    else:
-        store = zarr.DirectoryStore(img_path)
-    return zarr.open(store, mode="r")
+    args = get_tensorstore_args(img_path)
+    img = ts.open(args, open=True).result()
+    img = img.read().result()
+    return img
 
 
 def _read_n5(img_path):
@@ -446,6 +442,40 @@ def get_slices(center, shape):
     """
     start = [c - d // 2 for c, d in zip(center, shape)]
     return tuple(slice(s, s + d) for s, d in zip(start, shape))
+
+
+def get_tensorstore_args(img_path):
+    """
+    Gets the arguments needed to use tensorstore to read the given zarr image.
+
+    Parameters
+    ----------
+    img_path : str
+        Path to image to be read.
+
+    Returns
+    -------
+    tensorstore_args : dict
+        Arguments needed to use tensorstore to read the given zarr image.
+    """
+    if _is_s3_path(img_path):
+        bucket_name, path = util.parse_cloud_path(img_path)
+        tensorstore_args = {
+            "driver": "zarr",
+            "kvstore": {"driver": "s3", "bucket": bucket_name, "path": path},
+        }
+    elif _is_gcs_path(img_path):
+        bucket_name, path = util.parse_cloud_path(img_path)
+        tensorstore_args = {
+            "driver": "zarr",
+            "kvstore": {"driver": "gcs", "bucket": bucket_name, "path": path},
+        }
+    else:
+        tensorstore_args = {
+            "driver": "zarr",
+            "kvstore": {"driver": "file", "path": img_path},
+        }
+    return tensorstore_args
 
 
 def is_contained(voxel, shape, buffer=0):

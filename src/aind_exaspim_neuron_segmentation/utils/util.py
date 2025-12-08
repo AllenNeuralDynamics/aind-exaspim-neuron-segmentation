@@ -134,3 +134,28 @@ def list_gcs_subprefixes(bucket_name, prefix):
         if is_dir and is_direct_subdir:
             subdirs.append(prefix)
     return subdirs
+
+
+# --- Miscellaneous ---
+def parse_cloud_path(path):
+    """
+    Parses a cloud storage path into its bucket name and key/prefix. Supports
+    paths of the form: "s3://bucket_name/prefix" or without a scheme.
+
+    Parameters
+    ----------
+    path : str
+        Path to be parsed.
+
+    Returns
+    -------
+    bucket_name : str
+        Name of the bucket.
+    prefix : str
+        Cloud prefix.
+    """
+    path = path[len("s3://") :]
+    parts = path.split("/", 1)
+    bucket_name = parts[0]
+    prefix = parts[1] if len(parts) > 1 else ""
+    return bucket_name, prefix
