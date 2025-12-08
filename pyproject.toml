@@ -27,6 +27,7 @@ dependencies = [
     'scikit-learn',
     'tensorboard',
     'tifffile',
+    'tensorstore',
     'torch',
     'torchvision',
     'waterz @ git+https://github.com/anna-grim/waterz.git@master',
