@@ -44,6 +44,9 @@ dev = [
     'Sphinx',
     'furo'
 ]
+volara = [
+    'volara'
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
